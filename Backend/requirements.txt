@@ -1,0 +1,8 @@
+Django==4.2.30
+djangorestframework
+djangorestframework-simplejwt
+django-cors-headers
+psycopg2-binary
+argon2-cffi
+user-agents
+python-dotenv

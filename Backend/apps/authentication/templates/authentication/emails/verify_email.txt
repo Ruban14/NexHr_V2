@@ -1,0 +1,14 @@
+NexHr — Verify your email address
+
+Welcome to NexHr.
+
+Confirm your email address to activate your account and access your secure workspace:
+
+{{ verify_url }}
+
+This verification link expires in {{ expiry_hours }} hours.
+
+If you did not create a NexHr account, you can safely ignore this email.
+
+—
+NexHr Enterprise HR Platform

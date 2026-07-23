@@ -1,0 +1,7 @@
+<section class="nexhr-card" [class]="['nexhr-card--' + padding(), elevated() ? 'nexhr-card--elevated' : '']">
+  <ng-content select="[card-header]" />
+  <div class="nexhr-card__body">
+    <ng-content />
+  </div>
+  <ng-content select="[card-footer]" />
+</section>

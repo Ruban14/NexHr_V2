@@ -1,0 +1,74 @@
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.brand__mark {
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, var(--color-brand-500), var(--color-brand-700));
+  box-shadow: var(--shadow-brand);
+  color: var(--color-on-brand);
+  font-weight: 700;
+}
+
+.brand--sm .brand__mark {
+  width: 2rem;
+  height: 2rem;
+  font-size: 0.875rem;
+}
+
+.brand--md .brand__mark {
+  width: 2.5rem;
+  height: 2.5rem;
+  font-size: 1rem;
+}
+
+.brand--lg .brand__mark {
+  width: 3rem;
+  height: 3rem;
+  font-size: 1.125rem;
+}
+
+.brand__text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.brand__name {
+  font-size: 1.125rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  color: var(--color-text-primary);
+}
+
+.brand__tagline {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.brand--sm .brand__name {
+  font-size: 1rem;
+}
+
+.brand--lg .brand__name {
+  font-size: 1.25rem;
+}
+
+.brand--inverse .brand__mark {
+  background: rgba(255, 255, 255, 0.18);
+  box-shadow: none;
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+}
+
+.brand--inverse .brand__name {
+  color: #ffffff;
+}
+
+.brand--inverse .brand__tagline {
+  color: rgba(248, 250, 252, 0.72);
+}

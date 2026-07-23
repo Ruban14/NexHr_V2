@@ -1,0 +1,11 @@
+<div class="brand" [class]="'brand--' + size()" [class.brand--inverse]="tone() === 'inverse'">
+  <div class="brand__mark" aria-hidden="true">
+    <span class="brand__glyph">N</span>
+  </div>
+  @if (showWordmark()) {
+    <div class="brand__text">
+      <span class="brand__name">NexHr</span>
+      <span class="brand__tagline">Enterprise HR Platform</span>
+    </div>
+  }
+</div>

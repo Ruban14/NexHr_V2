@@ -1,0 +1,19 @@
+<mat-form-field appearance="outline" class="nexhr-field" subscriptSizing="dynamic">
+  <mat-label>{{ label() }}</mat-label>
+  <input
+    matInput
+    [attr.id]="inputId() || null"
+    [type]="type()"
+    [formControl]="control()"
+    [placeholder]="placeholder()"
+    [autocomplete]="autocomplete()"
+    [attr.aria-invalid]="!!error()"
+    [attr.aria-describedby]="error() ? inputId() + '-error' : null"
+  />
+  @if (hint() && !error()) {
+    <mat-hint>{{ hint() }}</mat-hint>
+  }
+  @if (error()) {
+    <mat-error [id]="inputId() + '-error'">{{ error() }}</mat-error>
+  }
+</mat-form-field>

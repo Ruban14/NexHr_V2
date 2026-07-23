@@ -1,0 +1,63 @@
+/* Global pointer cursor for interactive controls */
+
+:is(
+  a:any-link,
+  a[href],
+  a[routerlink],
+  button:not(:disabled):not([disabled]),
+  [role='button']:not([aria-disabled='true']),
+  input[type='button']:not(:disabled),
+  input[type='submit']:not(:disabled),
+  input[type='reset']:not(:disabled),
+  input[type='file']:not(:disabled),
+  label[for],
+  select:not(:disabled),
+  summary,
+  .mat-mdc-menu-item,
+  .mat-mdc-tab,
+  .nexhr-btn:not(:disabled)
+) {
+  cursor: pointer;
+}
+
+/* Icons and labels inside controls must not show the default arrow */
+:is(a:any-link, a[href], button:not(:disabled):not([disabled]), [role='button']:not([aria-disabled='true'])) * {
+  cursor: pointer;
+}
+
+.nexhr-btn:not(:disabled),
+.nexhr-btn:not(:disabled) * {
+  cursor: pointer;
+}
+
+/* Clickable cards and list rows */
+:is(
+  .role-card,
+  .quick-action,
+  .theme-option,
+  .nav-item,
+  .nav-group__trigger,
+  .icon-btn,
+  .profile-trigger,
+  .link-btn,
+  .invite-card,
+  .session-card,
+  .pricing-card,
+  .refresh-btn,
+  .cta-btn,
+  .icon-text-btn
+) {
+  cursor: pointer;
+}
+
+:is(.role-card, .quick-action, .theme-option, .invite-card, .session-card, .pricing-card) * {
+  cursor: pointer;
+}
+
+button:disabled,
+button[disabled],
+a[aria-disabled='true'],
+.nexhr-btn:disabled,
+.nexhr-btn:disabled * {
+  cursor: not-allowed;
+}

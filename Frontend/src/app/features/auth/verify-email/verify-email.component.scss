@@ -1,0 +1,20 @@
+@use '../auth-page';
+
+.verify-copy {
+  margin: 0;
+  color: var(--color-text-secondary);
+}
+
+.verify-state {
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-muted);
+  color: var(--color-text-secondary);
+}
+
+form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+}

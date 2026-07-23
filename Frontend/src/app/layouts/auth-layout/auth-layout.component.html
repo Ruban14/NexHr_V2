@@ -1,0 +1,59 @@
+<div class="auth-layout" [class.auth-layout--login]="loginLayout()">
+  <div class="auth-layout__panel auth-layout__panel--brand">
+    <div class="auth-layout__ambiance" aria-hidden="true">
+      <span class="auth-layout__orb auth-layout__orb--a"></span>
+      <span class="auth-layout__orb auth-layout__orb--b"></span>
+      <span class="auth-layout__orb auth-layout__orb--c"></span>
+      <span class="auth-layout__sheen"></span>
+    </div>
+
+    <div class="auth-layout__brand">
+      <app-brand-mark size="lg" tone="inverse" />
+      <h1 class="auth-layout__headline">Modern HR operations for every industry.</h1>
+      <p class="auth-layout__copy">
+        Secure access to NexHr with enterprise-grade authentication and a polished experience built
+        for teams that scale.
+      </p>
+
+      @if (loginLayout()) {
+        <ul class="auth-layout__perks" aria-label="Why NexHr">
+          <li>
+            <span class="auth-layout__perk-icon" aria-hidden="true">✓</span>
+            <div>
+              <strong>One platform</strong>
+              <span>Enterprise HR workflows in one secure workspace</span>
+            </div>
+          </li>
+          <li>
+            <span class="auth-layout__perk-icon" aria-hidden="true">✓</span>
+            <div>
+              <strong>Secure sign-in</strong>
+              <span>Protected sessions with token refresh and remember me</span>
+            </div>
+          </li>
+          <li>
+            <span class="auth-layout__perk-icon" aria-hidden="true">✓</span>
+            <div>
+              <strong>Built to scale</strong>
+              <span>From first hire through full lifecycle management</span>
+            </div>
+          </li>
+        </ul>
+        <p class="auth-layout__org-note">Sign in with the email associated with your account.</p>
+      } @else {
+        <p class="auth-layout__org-note">Create your account to get started with NexHr.</p>
+      }
+    </div>
+  </div>
+
+  <div class="auth-layout__panel auth-layout__panel--form">
+    <div class="auth-layout__form-shell">
+      <div class="auth-layout__mobile-brand">
+        <app-brand-mark size="sm" [showWordmark]="true" />
+      </div>
+      <div class="auth-layout__outlet" [@routeAnimations]="getRouteAnimation(outlet)">
+        <router-outlet #outlet="outlet" />
+      </div>
+    </div>
+  </div>
+</div>
