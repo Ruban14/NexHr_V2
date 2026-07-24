@@ -22,7 +22,7 @@ except ImportError:  # pragma: no cover - installed via requirements
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 if load_dotenv is not None:
-    load_dotenv(BASE_DIR / '.env')
+    load_dotenv(BASE_DIR / '.env', override=True)
 
 
 def env_bool(name: str, default: str = 'False') -> bool:
@@ -56,6 +56,7 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt.token_blacklist',
     'apps.core',
     'apps.authentication',
+    'apps.organization',
 ]
 
 MIDDLEWARE = [
@@ -198,7 +199,7 @@ EMAIL_FAIL_SILENTLY = env_bool('EMAIL_FAIL_SILENTLY', 'False')
 
 CORS_ALLOWED_ORIGINS = env_list(
     'CORS_ALLOWED_ORIGINS',
-    'http://localhost:4200,http://127.0.0.1:4200',
+    'http://localhost:5173,http://127.0.0.1:5173',
 )
 CORS_ALLOW_CREDENTIALS = env_bool('CORS_ALLOW_CREDENTIALS', 'True')
 if default_headers:

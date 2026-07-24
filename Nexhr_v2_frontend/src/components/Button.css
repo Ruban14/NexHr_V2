@@ -1,0 +1,85 @@
+.nex-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  font: inherit;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  min-height: 2.75rem;
+  padding: 0 1rem;
+  font-size: 0.9375rem;
+  transition:
+    background-color var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast),
+    box-shadow var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+.nex-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.nex-btn--full {
+  width: 100%;
+}
+
+.nex-btn--lg {
+  min-height: 3rem;
+  padding: 0 1.375rem;
+  font-size: 1rem;
+}
+
+.nex-btn--primary {
+  background: var(--color-brand-600);
+  color: var(--color-on-brand);
+  box-shadow: var(--shadow-sm);
+}
+
+.nex-btn--primary:hover:not(:disabled) {
+  background: var(--color-brand-700);
+  transform: translateY(-1px);
+}
+
+.nex-btn--secondary {
+  background: var(--color-surface-elevated);
+  color: var(--color-text-primary);
+  border-color: var(--color-border);
+}
+
+.nex-btn--secondary:hover:not(:disabled) {
+  background: var(--color-surface-hover, #f3f4f8);
+}
+
+.nex-btn--ghost {
+  background: transparent;
+  color: var(--color-text-secondary);
+}
+
+.nex-btn--ghost:hover:not(:disabled) {
+  background: var(--color-surface-hover, #f3f4f8);
+  color: var(--color-text-primary);
+}
+
+.nex-btn__spinner {
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

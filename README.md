@@ -1,13 +1,13 @@
-# NexHr_V2 — Authentication
+# NexHr_V2 — Authentication + Organization Setup
 
-Authentication-only stack for **NexHr** (brand mark **N**, tagline **Enterprise HR Platform**). No org multi-tenancy, IAM, people, or invitations.
+Stack for **NexHr** (brand mark **N**, tagline **Enterprise HR Platform**).
 
 ## Stack
 
 | Layer | Tech |
 |-------|------|
 | Backend | Django 4.2 + DRF + SimpleJWT + Argon2 |
-| Frontend | Angular 19 standalone + Angular Material + signals |
+| Frontend | React (Vite) + React Router |
 | Database | PostgreSQL (`NexHr_V2` / user `NexHRMS`) |
 
 ## Quick start
@@ -32,88 +32,31 @@ python manage.py runserver
 ```
 
 API base: `http://localhost:8000/api`  
-Auth mount: `http://localhost:8000/api/auth/`
-
-In development, emails print to the console (`EMAIL_BACKEND=console`).
+Auth mount: `http://localhost:8000/api/auth/`  
+Organization mount: `http://localhost:8000/api/organization/`
 
 ### 3. Frontend
 
 ```bash
-cd Frontend
+cd Nexhr_v2_frontend
 npm install
-npm start
+npm run dev
 ```
 
-App: `http://localhost:4200` → redirects to `/auth/login`
+App: `http://localhost:5173` → `/auth/login`
+
+## Auth + org flow
+
+1. Register → verify email link
+2. Sign in
+3. If no organization membership → `/organizations/create`
+4. Creates `UserProfile` (admin), `Organization`, and `OrganizationMembership`
 
 ## Environment variables (Backend)
 
 | Variable | Purpose | Default |
 |----------|---------|---------|
-| `SECRET_KEY` | Django secret | insecure placeholder |
-| `DEBUG` | Debug mode | `True` |
-| `FRONTEND_URL` | Links in verify/reset emails | `http://localhost:4200` |
-| `DB_NAME` / `DB_USER` / `DB_PASSWORD` / `DB_HOST` / `DB_PORT` | Postgres | `NexHr_V2` / `NexHRMS` / `NexHRMS` / `localhost` / `5432` |
-| `CORS_ALLOWED_ORIGINS` | Allowed frontends | `http://localhost:4200,...` |
-| `EMAIL_BACKEND` | Mail transport | console backend |
-| `DEFAULT_FROM_EMAIL` | From address | `noreply@nexhr.local` |
-| `AUTH_MAX_LOGIN_ATTEMPTS` | Failures before throttle/lock | `5` |
-| `AUTH_LOCKOUT_WINDOW_MINUTES` | Attempt window | `15` |
-| `AUTH_LOCKOUT_DURATION_MINUTES` | Account lock duration | `15` |
-| `AUTH_ACCOUNT_LOCK_MIN_IPS` | Distinct IPs to lock account | `2` |
+| `FRONTEND_URL` | Links in verify/reset emails | `http://localhost:5173` |
+| `CORS_ALLOWED_ORIGINS` | Allowed frontends | `http://localhost:5173,...` |
 
-Frontend API base is configured in `Frontend/src/app/core/config/api.config.ts` (`http://localhost:8000/api`).
-
-## Auth routes (UI)
-
-| Route | Purpose |
-|-------|---------|
-| `/auth/login` | Sign in |
-| `/auth/register` | Sign up (no auto-login) |
-| `/auth/forgot-password` | Request reset email |
-| `/auth/reset-password?token=` | Set new password |
-| `/auth/verify-email?token=` | Verify email |
-| `/app` | Authenticated home stub (name + logout) |
-
-## Auth API (`/api/auth/`)
-
-Envelope: `{ "success", "message", "data", "errors" }`
-
-| Method | Path | Notes |
-|--------|------|-------|
-| POST | `/register` | Creates unverified user; sends verify email; **no tokens** |
-| POST | `/login` | Returns `{ user, tokens }` only if verified |
-| POST | `/logout` | Bearer + `{ refresh }` — kills session |
-| POST | `/refresh` | Rotates refresh; returns new access+refresh |
-| POST | `/forgot-password` | Always generic success |
-| POST | `/reset-password` | `{ token, password }` — invalidates sessions |
-| POST | `/verify-email` | `{ token }` |
-| POST | `/resend-verification` | `{ email }` |
-| GET | `/me` | Bearer — user profile |
-
-## Security highlights
-
-- Password min length **9** + Django validators; **Argon2** hasher
-- Email verification required before login
-- Verify/reset tokens stored as SHA-256 hashes (constant-time compare)
-- JWT access ~15m, refresh ~8h; rotate + blacklist
-- Access JWT requires active session claim `sid`
-- Dual lockout (same email+IP throttle; multi-IP account lock)
-- Auth throttles: anon ~20/min, user ~60/min
-
-## Tests
-
-```bash
-cd Backend && source venv/bin/activate
-python manage.py test apps.authentication
-```
-
-## Admin
-
-Custom user uses **email** as username. Example staff user (after migrate):
-
-```bash
-DJANGO_SUPERUSER_PASSWORD='NexHRMS' python manage.py createsuperuser --email NexHRMS@nexhr.com
-```
-
-Then set `is_staff` / `is_superuser` / `is_email_verified` as needed (or use Django shell).
+Frontend API base defaults to `http://localhost:8000/api` (override with `VITE_API_BASE_URL`).
