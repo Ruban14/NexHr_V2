@@ -1,12 +1,12 @@
 import { type FormEvent, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { extractErrorMessage, extractFieldErrors } from '../api/client';
-import { useAuth } from '../auth/AuthContext';
-import { Button } from '../components/Button';
-import { Card } from '../components/Card';
-import { FormField } from '../components/FormField';
-import { PasswordInput } from '../components/PasswordInput';
-import { PasswordStrength } from '../components/PasswordStrength';
+import { extractErrorMessage, extractFieldErrors } from '../../api/client';
+import { useAuth } from '../../auth/AuthContext';
+import { Button } from '../../components/Button';
+import { Card } from '../../components/Card';
+import { FormField } from '../../components/FormField';
+import { PasswordInput } from '../../components/PasswordInput';
+import { PasswordStrength } from '../../components/PasswordStrength';
 import './RegisterPage.css';
 
 export function RegisterPage() {

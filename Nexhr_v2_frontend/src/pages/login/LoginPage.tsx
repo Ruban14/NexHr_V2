@@ -1,13 +1,13 @@
 import { type FormEvent, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { organizationApi } from '../api/auth';
-import { extractErrorMessage, extractFieldErrors } from '../api/client';
-import { useAuth } from '../auth/AuthContext';
-import { tokenStorage } from '../auth/tokenStorage';
-import { Button } from '../components/Button';
-import { Card } from '../components/Card';
-import { FormField } from '../components/FormField';
-import { PasswordInput } from '../components/PasswordInput';
+import { organizationApi } from '../../api/auth';
+import { extractErrorMessage, extractFieldErrors } from '../../api/client';
+import { useAuth } from '../../auth/AuthContext';
+import { tokenStorage } from '../../auth/tokenStorage';
+import { Button } from '../../components/Button';
+import { Card } from '../../components/Card';
+import { FormField } from '../../components/FormField';
+import { PasswordInput } from '../../components/PasswordInput';
 import './LoginPage.css';
 
 export function LoginPage() {

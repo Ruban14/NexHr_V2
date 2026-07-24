@@ -1,11 +1,11 @@
 import { type FormEvent, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { organizationApi } from '../api/auth';
-import { extractErrorMessage } from '../api/client';
-import { useAuth } from '../auth/AuthContext';
-import { tokenStorage } from '../auth/tokenStorage';
-import { Button } from '../components/Button';
-import type { IndustryType, OrganizationCreateResponse } from '../types';
+import { organizationApi } from '../../api/auth';
+import { extractErrorMessage } from '../../api/client';
+import { useAuth } from '../../auth/AuthContext';
+import { tokenStorage } from '../../auth/tokenStorage';
+import { Button } from '../../components/Button';
+import type { IndustryType, OrganizationCreateResponse } from '../../types';
 import './OrganizationCreatePage.css';
 
 const STEP_LABELS = ['Industry', 'Organization', 'Done'];

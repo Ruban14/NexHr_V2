@@ -1,12 +1,16 @@
 import { apiRequest } from './client';
 import type {
   LoginResponse,
+  Organization,
   OrganizationCreateRequest,
   OrganizationCreateResponse,
   OrganizationSetupStatus,
+  OrganizationUpdateRequest,
   IndustryType,
   RegisterResponse,
   User,
+  UserProfileDetail,
+  UserProfileUpdateRequest,
 } from '../types';
 
 export const authApi = {
@@ -53,4 +57,22 @@ export const organizationApi = {
 
   createOrganization: (token: string, payload: OrganizationCreateRequest) =>
     apiRequest<OrganizationCreateResponse>('/organization/create', { token, body: payload }),
+
+  getCurrent: (token: string) => apiRequest<Organization>('/organization/current', { token }),
+
+  updateCurrent: (token: string, payload: OrganizationUpdateRequest) =>
+    apiRequest<Organization>('/organization/current', {
+      token,
+      method: 'PATCH',
+      body: payload,
+    }),
+
+  getProfile: (token: string) => apiRequest<UserProfileDetail>('/organization/profile', { token }),
+
+  updateProfile: (token: string, payload: UserProfileUpdateRequest) =>
+    apiRequest<UserProfileDetail>('/organization/profile', {
+      token,
+      method: 'PATCH',
+      body: payload,
+    }),
 };

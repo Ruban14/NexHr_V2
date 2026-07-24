@@ -1,10 +1,10 @@
 import { type FormEvent, useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { extractErrorMessage } from '../api/client';
-import { useAuth } from '../auth/AuthContext';
-import { Button } from '../components/Button';
-import { Card } from '../components/Card';
-import { FormField } from '../components/FormField';
+import { extractErrorMessage } from '../../api/client';
+import { useAuth } from '../../auth/AuthContext';
+import { Button } from '../../components/Button';
+import { Card } from '../../components/Card';
+import { FormField } from '../../components/FormField';
 
 export function VerifyEmailPage() {
   const auth = useAuth();

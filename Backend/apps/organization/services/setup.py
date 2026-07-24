@@ -220,6 +220,7 @@ class OrganizationSetupService:
             'email': organization.email,
             'phone': organization.phone,
             'website': organization.website,
+            'logo': organization.logo,
             'country': organization.country,
             'state': organization.state,
             'city': organization.city,
@@ -254,6 +255,7 @@ class OrganizationSetupService:
             'id': str(profile.id),
             'user_id': str(profile.user_id),
             'display_name': profile.display_name,
+            'profile_photo': profile.profile_photo,
             'mobile_number': profile.mobile_number,
             'is_profile_completed': profile.is_profile_completed,
         }

@@ -34,6 +34,8 @@ type AuthContextValue = {
   resendVerification: (email: string) => Promise<void>;
   getAccessToken: () => string | null;
   establishSession: (response: LoginResponse, rememberMe?: boolean) => void;
+  setUser: (user: User | null) => void;
+  refreshUser: () => Promise<User | null>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -188,6 +190,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const refreshUser = useCallback(async () => {
+    const access = tokenStorage.getAccessToken();
+    if (!access) {
+      setUser(null);
+      return null;
+    }
+    try {
+      const me = await authApi.me(access);
+      setUser(me);
+      return me;
+    } catch {
+      return null;
+    }
+  }, []);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
@@ -204,6 +221,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       resendVerification,
       getAccessToken: () => tokenStorage.getAccessToken(),
       establishSession,
+      setUser,
+      refreshUser,
     }),
     [
       user,
@@ -217,6 +236,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       verifyEmail,
       resendVerification,
       establishSession,
+      refreshUser,
     ],
   );
 

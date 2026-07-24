@@ -1,10 +1,10 @@
 import { type FormEvent, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { extractErrorMessage } from '../api/client';
-import { useAuth } from '../auth/AuthContext';
-import { Button } from '../components/Button';
-import { Card } from '../components/Card';
-import { PasswordInput } from '../components/PasswordInput';
+import { extractErrorMessage } from '../../api/client';
+import { useAuth } from '../../auth/AuthContext';
+import { Button } from '../../components/Button';
+import { Card } from '../../components/Card';
+import { PasswordInput } from '../../components/PasswordInput';
 
 export function ResetPasswordPage() {
   const auth = useAuth();

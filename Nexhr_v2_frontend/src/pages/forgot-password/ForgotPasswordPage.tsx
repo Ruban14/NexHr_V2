@@ -1,10 +1,10 @@
 import { type FormEvent, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { extractErrorMessage } from '../api/client';
-import { useAuth } from '../auth/AuthContext';
-import { Button } from '../components/Button';
-import { Card } from '../components/Card';
-import { FormField } from '../components/FormField';
+import { extractErrorMessage } from '../../api/client';
+import { useAuth } from '../../auth/AuthContext';
+import { Button } from '../../components/Button';
+import { Card } from '../../components/Card';
+import { FormField } from '../../components/FormField';
 
 export function ForgotPasswordPage() {
   const auth = useAuth();
