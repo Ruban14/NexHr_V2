@@ -26,7 +26,6 @@ export type RegisterResponse = {
 
 export type IndustryType = {
   id: string;
-  code: string;
   name: string;
   is_active: boolean;
 };
@@ -73,6 +72,37 @@ export type OrganizationCreateResponse = {
   };
 };
 
+export type OrganizationBranch = {
+  id: string;
+  branch_code: string;
+  branch_name: string;
+  city: string;
+  state: string;
+  country: string;
+  is_headquarters: boolean;
+  status: string;
+  organization_id: string;
+};
+
+export type BranchMembership = {
+  id: string;
+  organization_id: string;
+  organization_name: string;
+  organization_logo: string;
+  branch_id: string;
+  branch_code: string;
+  branch_name: string;
+  is_headquarters: boolean;
+  employee_code: string;
+  status: string;
+  access_type_id: string | null;
+  access_type_name: string | null;
+  employee_type_id: string | null;
+  employee_type_name: string | null;
+  designation_id: string | null;
+  designation_name: string | null;
+};
+
 export type Organization = {
   id: string;
   organization_code: string;
@@ -93,6 +123,8 @@ export type Organization = {
   is_active: boolean;
   owner_id: string;
   can_edit: boolean;
+  current_branch?: OrganizationBranch;
+  membership?: BranchMembership;
 };
 
 export type OrganizationUpdateRequest = {
@@ -136,6 +168,9 @@ export type UserProfileDetail = {
   employee_code: string | null;
   organization_id: string | null;
   organization_name: string | null;
+  branch_id?: string | null;
+  branch_name?: string | null;
+  access_type_name?: string | null;
 };
 
 export type UserProfileUpdateRequest = {
@@ -155,6 +190,85 @@ export type UserProfileUpdateRequest = {
   postal_code?: string;
   mother_language?: string;
   languages_known?: string[];
+};
+
+export type PaginationMeta = {
+  page: number;
+  page_size: number;
+  total: number;
+  total_pages: number;
+};
+
+export type PaginatedResponse<T> = {
+  items: T[];
+  pagination: PaginationMeta;
+};
+
+export type MasterRecord = {
+  id: string;
+  name: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  description?: string;
+  organization_id?: string;
+  start_time?: string;
+  end_time?: string;
+  working_days?: number[];
+};
+
+export type Department = MasterRecord & {
+  organization_id: string;
+};
+
+export type Designation = MasterRecord & {
+  department_id: string;
+  parent_id: string | null;
+  sort_order: number;
+  children?: Designation[];
+};
+
+export type EmployeeType = MasterRecord;
+
+export type AccessType = MasterRecord & {
+  description: string;
+  industry_type_id: string | null;
+};
+
+export type Shift = MasterRecord & {
+  organization_id: string;
+  start_time: string;
+  end_time: string;
+};
+
+export type WorkWeek = MasterRecord & {
+  organization_id: string;
+  working_days: number[];
+};
+
+export type LeaveType = MasterRecord & {
+  organization_id: string;
+};
+
+export type HolidayCalendar = MasterRecord & {
+  organization_id: string;
+  year: number;
+};
+
+export type Holiday = {
+  id: string;
+  name: string;
+  date: string;
+  holiday_calendar_id: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type MasterListParams = {
+  search?: string;
+  page?: number;
+  page_size?: number;
+  is_active?: boolean;
 };
 
 export function getUserFullName(user: Pick<User, 'first_name' | 'last_name' | 'email' | 'full_name'>): string {

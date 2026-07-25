@@ -9,16 +9,21 @@ import {
 } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { organizationApi } from '../api/auth';
+import { setActiveBranchId } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { tokenStorage } from '../auth/tokenStorage';
-import type { Organization, UserProfileDetail } from '../types';
+import type { BranchMembership, Organization, UserProfileDetail } from '../types';
+import { branchStorage } from './branchStorage';
 
 type WorkspaceContextValue = {
   organization: Organization | null;
   profile: UserProfileDetail | null;
+  branches: BranchMembership[];
+  currentBranch: BranchMembership | null;
   loading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
+  switchBranch: (branchId: string) => Promise<void>;
   setOrganization: (organization: Organization | null) => void;
   setProfile: (profile: UserProfileDetail | null) => void;
 };
@@ -30,8 +35,23 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [profile, setProfile] = useState<UserProfileDetail | null>(null);
+  const [branches, setBranches] = useState<BranchMembership[]>([]);
+  const [currentBranch, setCurrentBranch] = useState<BranchMembership | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const applyBranch = useCallback((memberships: BranchMembership[], preferredId?: string | null) => {
+    const stored = preferredId ?? branchStorage.get();
+    const selected =
+      memberships.find((item) => item.branch_id === stored) ||
+      memberships.find((item) => item.is_headquarters) ||
+      memberships[0] ||
+      null;
+    setCurrentBranch(selected);
+    setActiveBranchId(selected?.branch_id ?? null);
+    branchStorage.set(selected?.branch_id ?? null);
+    return selected;
+  }, []);
 
   const refresh = useCallback(async () => {
     const token = tokenStorage.getAccessToken();
@@ -49,6 +69,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      const memberships = await organizationApi.listBranches(token);
+      setBranches(memberships);
+      applyBranch(memberships);
+
       const [org, userProfile] = await Promise.all([
         organizationApi.getCurrent(token),
         organizationApi.getProfile(token),
@@ -60,7 +84,35 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false);
     }
-  }, [navigate]);
+  }, [navigate, applyBranch]);
+
+  const switchBranch = useCallback(
+    async (branchId: string) => {
+      const token = tokenStorage.getAccessToken();
+      if (!token) return;
+      const next = branches.find((item) => item.branch_id === branchId);
+      if (!next) return;
+
+      setCurrentBranch(next);
+      setActiveBranchId(branchId);
+      branchStorage.set(branchId);
+      setLoading(true);
+      setError(null);
+      try {
+        const [org, userProfile] = await Promise.all([
+          organizationApi.getCurrent(token),
+          organizationApi.getProfile(token),
+        ]);
+        setOrganization(org);
+        setProfile(userProfile);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Unable to switch branch.');
+      } finally {
+        setLoading(false);
+      }
+    },
+    [branches],
+  );
 
   useEffect(() => {
     if (!auth.isAuthenticated) return;
@@ -71,13 +123,16 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     () => ({
       organization,
       profile,
+      branches,
+      currentBranch,
       loading,
       error,
       refresh,
+      switchBranch,
       setOrganization,
       setProfile,
     }),
-    [organization, profile, loading, error, refresh],
+    [organization, profile, branches, currentBranch, loading, error, refresh, switchBranch],
   );
 
   return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>;

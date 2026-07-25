@@ -1,8 +1,9 @@
-"""Workspace services for current organization and user profile."""
+"""Workspace services for current organization, branch context, and user profile."""
 
 from __future__ import annotations
 
 from datetime import date
+from uuid import UUID
 
 from django.db import transaction
 
@@ -15,18 +16,47 @@ class WorkspaceService:
     """Read/update the authenticated user's organization and profile."""
 
     @classmethod
-    def get_membership(cls, user: User) -> OrganizationMembership:
-        membership = (
+    def list_memberships(cls, user: User) -> list[dict]:
+        memberships = (
             OrganizationMembership.objects.select_related(
-                'organization',
-                'organization__industry_type',
-                'user_profile',
+                'branch',
+                'branch__organization',
                 'access_type',
+                'employee_type',
+                'designation',
             )
-            .filter(user_profile__user=user, status=OrganizationMembership.Status.ACTIVE)
-            .order_by('-created_at')
-            .first()
+            .filter(user=user, status=OrganizationMembership.Status.ACTIVE)
+            .order_by('branch__organization__display_name', '-branch__is_headquarters', 'branch__branch_name')
         )
+        return [cls.serialize_membership_summary(m) for m in memberships]
+
+    @classmethod
+    def get_membership(
+        cls,
+        user: User,
+        *,
+        branch_id: str | UUID | None = None,
+    ) -> OrganizationMembership:
+        qs = OrganizationMembership.objects.select_related(
+            'branch',
+            'branch__organization',
+            'branch__organization__industry_type',
+            'user',
+            'access_type',
+            'employee_type',
+            'designation',
+        ).filter(user=user, status=OrganizationMembership.Status.ACTIVE)
+
+        if branch_id:
+            membership = qs.filter(branch_id=branch_id).first()
+            if membership is None:
+                raise NotFoundServiceError(
+                    'No active membership found for the selected branch.',
+                    code='branch_membership_not_found',
+                )
+            return membership
+
+        membership = qs.order_by('-created_at').first()
         if membership is None:
             raise NotFoundServiceError(
                 'No organization membership found.',
@@ -35,17 +65,26 @@ class WorkspaceService:
         return membership
 
     @classmethod
-    def get_organization(cls, user: User) -> dict:
-        membership = cls.get_membership(user)
-        return cls.serialize_organization(
+    def get_organization(cls, user: User, *, branch_id: str | UUID | None = None) -> dict:
+        membership = cls.get_membership(user, branch_id=branch_id)
+        data = cls.serialize_organization(
             membership.organization,
             can_edit=membership.organization.owner_id == user.id,
         )
+        data['current_branch'] = cls.serialize_branch(membership.branch)
+        data['membership'] = cls.serialize_membership_summary(membership)
+        return data
 
     @classmethod
     @transaction.atomic
-    def update_organization(cls, *, user: User, payload: dict) -> dict:
-        membership = cls.get_membership(user)
+    def update_organization(
+        cls,
+        *,
+        user: User,
+        payload: dict,
+        branch_id: str | UUID | None = None,
+    ) -> dict:
+        membership = cls.get_membership(user, branch_id=branch_id)
         organization = membership.organization
         if organization.owner_id != user.id:
             raise PermissionDeniedServiceError(
@@ -86,24 +125,41 @@ class WorkspaceService:
 
         organization.updated_by = user
         organization.save()
-        return cls.serialize_organization(organization, can_edit=True)
+        data = cls.serialize_organization(organization, can_edit=True)
+        data['current_branch'] = cls.serialize_branch(membership.branch)
+        data['membership'] = cls.serialize_membership_summary(membership)
+        return data
 
     @classmethod
-    def get_profile(cls, user: User) -> dict:
+    def get_profile(cls, user: User, *, branch_id: str | UUID | None = None) -> dict:
         profile = UserProfile.objects.filter(user=user).first()
         if profile is None:
             raise NotFoundServiceError('User profile not found.', code='profile_not_found')
-        membership = (
-            OrganizationMembership.objects.select_related('organization', 'access_type')
-            .filter(user_profile=profile, status=OrganizationMembership.Status.ACTIVE)
-            .order_by('-created_at')
-            .first()
-        )
+        membership = None
+        try:
+            membership = cls.get_membership(user, branch_id=branch_id)
+        except NotFoundServiceError:
+            membership = (
+                OrganizationMembership.objects.select_related(
+                    'branch',
+                    'branch__organization',
+                    'access_type',
+                )
+                .filter(user=user, status=OrganizationMembership.Status.ACTIVE)
+                .order_by('-created_at')
+                .first()
+            )
         return cls.serialize_profile(user=user, profile=profile, membership=membership)
 
     @classmethod
     @transaction.atomic
-    def update_profile(cls, *, user: User, payload: dict) -> dict:
+    def update_profile(
+        cls,
+        *,
+        user: User,
+        payload: dict,
+        branch_id: str | UUID | None = None,
+    ) -> dict:
         profile = UserProfile.objects.filter(user=user).first()
         if profile is None:
             raise NotFoundServiceError('User profile not found.', code='profile_not_found')
@@ -163,19 +219,26 @@ class WorkspaceService:
                     details={'languages_known': ['Provide a list of languages.']},
                 )
 
-        # Mark completed when core identity fields are present.
         has_core = bool(profile.display_name and profile.mobile_number)
         profile.is_profile_completed = has_core
         profile.completed_status = 'done' if has_core else ''
         profile.updated_by = user
         profile.save()
 
-        membership = (
-            OrganizationMembership.objects.select_related('organization', 'access_type')
-            .filter(user_profile=profile, status=OrganizationMembership.Status.ACTIVE)
-            .order_by('-created_at')
-            .first()
-        )
+        membership = None
+        try:
+            membership = cls.get_membership(user, branch_id=branch_id)
+        except NotFoundServiceError:
+            membership = (
+                OrganizationMembership.objects.select_related(
+                    'branch',
+                    'branch__organization',
+                    'access_type',
+                )
+                .filter(user=user, status=OrganizationMembership.Status.ACTIVE)
+                .order_by('-created_at')
+                .first()
+            )
         return cls.serialize_profile(user=user, profile=profile, membership=membership)
 
     @classmethod
@@ -201,6 +264,43 @@ class WorkspaceService:
             'is_active': organization.is_active,
             'owner_id': str(organization.owner_id),
             'can_edit': can_edit,
+        }
+
+    @classmethod
+    def serialize_branch(cls, branch) -> dict:
+        return {
+            'id': str(branch.id),
+            'branch_code': branch.branch_code,
+            'branch_name': branch.branch_name,
+            'city': branch.city,
+            'state': branch.state,
+            'country': branch.country,
+            'is_headquarters': branch.is_headquarters,
+            'status': branch.status,
+            'organization_id': str(branch.organization_id),
+        }
+
+    @classmethod
+    def serialize_membership_summary(cls, membership: OrganizationMembership) -> dict:
+        branch = membership.branch
+        org = branch.organization
+        return {
+            'id': str(membership.id),
+            'organization_id': str(org.id),
+            'organization_name': org.display_name,
+            'organization_logo': org.logo,
+            'branch_id': str(branch.id),
+            'branch_code': branch.branch_code,
+            'branch_name': branch.branch_name,
+            'is_headquarters': branch.is_headquarters,
+            'employee_code': membership.employee_code,
+            'status': membership.status,
+            'access_type_id': str(membership.access_type_id) if membership.access_type_id else None,
+            'access_type_name': membership.access_type.name if membership.access_type else None,
+            'employee_type_id': str(membership.employee_type_id) if membership.employee_type_id else None,
+            'employee_type_name': membership.employee_type.name if membership.employee_type else None,
+            'designation_id': str(membership.designation_id) if membership.designation_id else None,
+            'designation_name': membership.designation.name if membership.designation else None,
         }
 
     @classmethod
@@ -234,8 +334,15 @@ class WorkspaceService:
             'languages_known': profile.languages_known or [],
             'is_profile_completed': profile.is_profile_completed,
             'employee_code': membership.employee_code if membership else None,
-            'organization_id': str(membership.organization_id) if membership else None,
+            'organization_id': (
+                str(membership.branch.organization_id) if membership else None
+            ),
             'organization_name': (
-                membership.organization.display_name if membership else None
+                membership.branch.organization.display_name if membership else None
+            ),
+            'branch_id': str(membership.branch_id) if membership else None,
+            'branch_name': membership.branch.branch_name if membership else None,
+            'access_type_name': (
+                membership.access_type.name if membership and membership.access_type else None
             ),
         }

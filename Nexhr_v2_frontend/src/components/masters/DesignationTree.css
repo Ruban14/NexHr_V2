@@ -1,0 +1,449 @@
+.designation-tree {
+  min-width: 0;
+}
+
+.dept-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--color-text-secondary);
+  font-size: 0.85rem;
+}
+
+.dept-select select {
+  min-width: 180px;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-input);
+  color: var(--color-text-primary);
+}
+
+.teams-tree__toolbar-actions {
+  display: inline-flex;
+  gap: 0.15rem;
+}
+
+.teams-tree {
+  --tree-guide: 22px;
+  --tree-line: rgba(106, 113, 133, 0.35);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  background:
+    radial-gradient(circle at top left, rgba(92, 97, 242, 0.06), transparent 42%),
+    var(--color-surface-card);
+  overflow: auto;
+}
+
+.teams-tree__header {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 1rem 1.1rem;
+  border-bottom: 1px solid var(--color-border-subtle);
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.teams-tree__header-mark {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: linear-gradient(145deg, #5c61f2, #7a7ff5);
+  color: #fff;
+  font-weight: 700;
+  font-size: 1rem;
+  box-shadow: 0 8px 18px rgba(92, 97, 242, 0.28);
+}
+
+.teams-tree__header h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.teams-tree__header p {
+  margin: 0.15rem 0 0;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.teams-tree__root,
+.teams-tree__children {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.teams-tree__root {
+  padding: 0.65rem 0.75rem 1rem;
+}
+
+.teams-tree__item {
+  position: relative;
+}
+
+.teams-tree__row {
+  display: flex;
+  align-items: stretch;
+  min-height: 64px;
+  margin: 0.2rem 0;
+  border-radius: 12px;
+  cursor: grab;
+  outline: none;
+  transition: background var(--transition-fast), box-shadow var(--transition-fast);
+  position: relative;
+}
+
+.teams-tree__row:active {
+  cursor: grabbing;
+}
+
+.teams-tree__row:hover,
+.teams-tree__row:focus-visible {
+  background: rgba(92, 97, 242, 0.04);
+}
+
+.teams-tree__row.is-selected {
+  background: var(--light-bg-primary);
+}
+
+.teams-tree__row.is-inactive .teams-tree__name {
+  color: var(--color-text-muted);
+}
+
+.teams-tree__row.is-dragging {
+  opacity: 0.45;
+}
+
+.teams-tree__row.drop-before::before,
+.teams-tree__row.drop-after::after {
+  content: '';
+  position: absolute;
+  left: 0.5rem;
+  right: 0.5rem;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--theme-default);
+  box-shadow: 0 0 0 3px rgba(92, 97, 242, 0.18);
+  z-index: 2;
+  pointer-events: none;
+}
+
+.teams-tree__row.drop-before::before {
+  top: -1px;
+}
+
+.teams-tree__row.drop-after::after {
+  bottom: -1px;
+}
+
+.teams-tree__row.drop-inside {
+  background: rgba(92, 97, 242, 0.12);
+  box-shadow: inset 0 0 0 2px rgba(92, 97, 242, 0.45);
+}
+
+.teams-tree.is-dnd-active .teams-tree__row:not(.is-dragging) {
+  transition: background 80ms ease, box-shadow 80ms ease;
+}
+
+.teams-tree__drag-handle {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  color: var(--color-text-muted);
+  opacity: 0.55;
+  flex-shrink: 0;
+  align-self: center;
+  cursor: grab;
+}
+
+.teams-tree__row:hover .teams-tree__drag-handle,
+.teams-tree__row.is-selected .teams-tree__drag-handle,
+.teams-tree.is-dnd-active .teams-tree__drag-handle {
+  opacity: 1;
+}
+
+.teams-tree__drag-handle::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%);
+  padding: 0.35rem 0.55rem;
+  border-radius: 6px;
+  background: #171829;
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 500;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 120ms ease, visibility 120ms ease;
+  z-index: 20;
+}
+
+.teams-tree__drag-handle:hover::after {
+  opacity: 1;
+  visibility: visible;
+}
+
+.teams-tree__guides {
+  display: flex;
+  flex-shrink: 0;
+  align-self: stretch;
+}
+
+.teams-tree__guide {
+  position: relative;
+  width: var(--tree-guide);
+  flex-shrink: 0;
+}
+
+.teams-tree__guide.has-line::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 1.5px;
+  transform: translateX(-50%);
+  background: var(--tree-line);
+}
+
+.teams-tree__branch {
+  position: relative;
+  width: var(--tree-guide);
+  flex-shrink: 0;
+}
+
+.teams-tree__branch-stem {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  height: 50%;
+  width: 1.5px;
+  transform: translateX(-50%);
+  background: var(--tree-line);
+}
+
+.teams-tree__branch:not(.is-last) .teams-tree__branch-stem {
+  height: 100%;
+}
+
+.teams-tree__branch-arm {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 50%;
+  height: 1.5px;
+  background: var(--tree-line);
+}
+
+.teams-tree__chevron {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin: auto 0.2rem auto 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  flex-shrink: 0;
+  align-self: center;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.teams-tree__chevron[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%);
+  padding: 0.35rem 0.55rem;
+  border-radius: 6px;
+  background: #171829;
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 500;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 120ms ease, visibility 120ms ease;
+  z-index: 20;
+}
+
+.teams-tree__chevron:hover:not(:disabled)[data-tooltip]::after {
+  opacity: 1;
+  visibility: visible;
+}
+
+.teams-tree__chevron:hover:not(:disabled) {
+  background: var(--color-surface-muted);
+  color: var(--color-text-primary);
+}
+
+.teams-tree__chevron.is-leaf {
+  cursor: default;
+}
+
+.teams-tree__chevron-icon {
+  transition: transform 160ms ease;
+  transform: rotate(0deg);
+}
+
+.teams-tree__chevron-icon.is-expanded {
+  transform: rotate(90deg);
+}
+
+.teams-tree__leaf-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--color-border-strong);
+  opacity: 0.45;
+}
+
+.teams-tree__card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+  flex: 1;
+  min-width: 0;
+  margin: 0.15rem 0;
+  padding: 0.55rem 0.7rem 0.55rem 0.35rem;
+  border-radius: 12px;
+  transition: transform var(--transition-fast);
+}
+
+.teams-tree__row:hover .teams-tree__card {
+  transform: translateX(1px);
+}
+
+.teams-tree__avatar {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 700;
+  flex-shrink: 0;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+}
+
+.teams-tree__avatar--L1 {
+  background: linear-gradient(145deg, #5c61f2, #7a7ff5);
+}
+
+.teams-tree__avatar--L2 {
+  background: linear-gradient(145deg, #0f9d8a, #39c4b0);
+}
+
+.teams-tree__avatar--L3 {
+  background: linear-gradient(145deg, #e07a3d, #f0a06a);
+}
+
+.teams-tree__avatar--L4 {
+  background: linear-gradient(145deg, #3b82c4, #6aa8df);
+}
+
+.teams-tree__meta {
+  min-width: 0;
+}
+
+.teams-tree__title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.teams-tree__name {
+  font-size: 0.92rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.teams-tree__subtitle {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.teams-tree__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--transition-fast);
+}
+
+.teams-tree__row:hover .teams-tree__actions,
+.teams-tree__row.is-selected .teams-tree__actions,
+.teams-tree__row:focus-within .teams-tree__actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.teams-tree__children {
+  animation: teams-tree-open 160ms ease;
+}
+
+@keyframes teams-tree-open {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .teams-tree__card {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.55rem;
+  }
+
+  .teams-tree__actions {
+    grid-column: 2;
+    opacity: 1;
+    pointer-events: auto;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
+  .teams-tree__guide,
+  .teams-tree__branch {
+    width: 16px;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  .teams-tree {
+    --tree-line: rgba(154, 160, 181, 0.35);
+    background:
+      radial-gradient(circle at top left, rgba(92, 97, 242, 0.12), transparent 42%),
+      var(--color-surface-card);
+  }
+
+  .teams-tree__header {
+    background: rgba(255, 255, 255, 0.02);
+  }
+}

@@ -15,21 +15,22 @@ from apps.organization.models import (
     EmployeeType,
     IndustryType,
     Organization,
+    OrganizationBranch,
     OrganizationMembership,
     UserProfile,
 )
 
-DEFAULT_INDUSTRIES: tuple[tuple[str, str], ...] = (
-    ('it', 'Information Technology'),
-    ('healthcare', 'Healthcare'),
-    ('education', 'Education'),
-    ('finance', 'Finance'),
-    ('manufacturing', 'Manufacturing'),
-    ('retail', 'Retail'),
-    ('hospitality', 'Hospitality'),
-    ('construction', 'Construction'),
-    ('logistics', 'Logistics'),
-    ('others', 'Others'),
+DEFAULT_INDUSTRIES: tuple[str, ...] = (
+    'Information Technology',
+    'Healthcare',
+    'Education',
+    'Finance',
+    'Manufacturing',
+    'Retail',
+    'Hospitality',
+    'Construction',
+    'Logistics',
+    'Others',
 )
 
 
@@ -38,10 +39,10 @@ class OrganizationSetupService:
 
     @classmethod
     def ensure_industry_defaults(cls) -> None:
-        for code, name in DEFAULT_INDUSTRIES:
+        for name in DEFAULT_INDUSTRIES:
             IndustryType.objects.get_or_create(
-                code=code,
-                defaults={'name': name, 'is_active': True},
+                name=name,
+                defaults={'is_active': True},
             )
 
     @classmethod
@@ -54,11 +55,7 @@ class OrganizationSetupService:
     @classmethod
     def get_setup_status(cls, user: User) -> dict:
         profile = UserProfile.objects.filter(user=user).first()
-        membership_exists = False
-        if profile is not None:
-            membership_exists = OrganizationMembership.objects.filter(
-                user_profile=profile,
-            ).exists()
+        membership_exists = OrganizationMembership.objects.filter(user=user).exists()
         owned = Organization.objects.filter(owner=user).exists()
         needs_setup = not membership_exists and not owned
         return {
@@ -120,9 +117,11 @@ class OrganizationSetupService:
             updated_by=user,
         )
 
+        headquarters = cls._create_headquarters_branch(organization=organization)
+
         membership = OrganizationMembership.objects.create(
-            organization=organization,
-            user_profile=profile,
+            branch=headquarters,
+            user=user,
             employee_type=employee_type,
             access_type=access_type,
             employee_code=cls._generate_employee_code(organization),
@@ -137,6 +136,21 @@ class OrganizationSetupService:
             'membership': cls._serialize_membership(membership),
             'profile': cls._serialize_profile(profile),
         }
+
+    @classmethod
+    def _create_headquarters_branch(cls, *, organization: Organization) -> OrganizationBranch:
+        return OrganizationBranch.objects.create(
+            organization=organization,
+            branch_code='HQ',
+            branch_name=f'{organization.display_name} Headquarters',
+            phone=organization.phone,
+            email=organization.email,
+            city=organization.city,
+            state=organization.state,
+            country=organization.country,
+            is_headquarters=True,
+            status=OrganizationBranch.Status.ACTIVE,
+        )
 
     @classmethod
     def _ensure_admin_profile(cls, *, user: User, phone: str) -> UserProfile:
@@ -169,9 +183,8 @@ class OrganizationSetupService:
     @classmethod
     def _ensure_admin_access_type(cls, *, industry: IndustryType) -> AccessType:
         access_type, _ = AccessType.objects.get_or_create(
-            code='admin',
+            name='Admin',
             defaults={
-                'name': 'Admin',
                 'description': 'Organization administrator',
                 'industry_type': industry,
                 'is_active': True,
@@ -185,11 +198,8 @@ class OrganizationSetupService:
     @classmethod
     def _ensure_default_employee_type(cls) -> EmployeeType:
         employee_type, _ = EmployeeType.objects.get_or_create(
-            code='permanent',
-            defaults={
-                'name': 'Permanent',
-                'is_active': True,
-            },
+            name='Permanent',
+            defaults={'is_active': True},
         )
         return employee_type
 
@@ -234,8 +244,9 @@ class OrganizationSetupService:
     def _serialize_membership(cls, membership: OrganizationMembership) -> dict:
         return {
             'id': str(membership.id),
-            'organization_id': str(membership.organization_id),
-            'user_profile_id': str(membership.user_profile_id),
+            'organization_id': str(membership.branch.organization_id),
+            'branch_id': str(membership.branch_id),
+            'user_id': str(membership.user_id),
             'access_type_id': (
                 str(membership.access_type_id) if membership.access_type_id else None
             ),

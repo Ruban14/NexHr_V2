@@ -9,7 +9,6 @@ from apps.organization.models import Organization
 
 class IndustryTypeSerializer(serializers.Serializer):
     id = serializers.UUIDField()
-    code = serializers.CharField()
     name = serializers.CharField()
     is_active = serializers.BooleanField()
 
@@ -70,7 +69,7 @@ class OrganizationUpdateSerializer(serializers.Serializer):
     email = serializers.EmailField(required=False, allow_blank=True)
     phone = serializers.CharField(max_length=32, required=False, allow_blank=True)
     website = serializers.CharField(max_length=200, required=False, allow_blank=True)
-    logo = serializers.URLField(required=False, allow_blank=True, max_length=200)
+    logo = serializers.CharField(required=False, allow_blank=True)
     country = serializers.CharField(max_length=100, required=False, allow_blank=True)
     state = serializers.CharField(max_length=100, required=False, allow_blank=True)
     city = serializers.CharField(max_length=100, required=False, allow_blank=True)
@@ -101,7 +100,19 @@ class OrganizationUpdateSerializer(serializers.Serializer):
         return cleaned
 
     def validate_logo(self, value: str) -> str:
-        return value.strip()
+        cleaned = value.strip()
+        if not cleaned:
+            return ''
+        # Temporary inline storage until object storage / buckets are adopted.
+        if cleaned.startswith('data:image/'):
+            if len(cleaned) > 1_500_000:
+                raise serializers.ValidationError('Logo image must be under ~1 MB.')
+            return cleaned
+        if cleaned.startswith(('http://', 'https://')):
+            if len(cleaned) > 2048:
+                raise serializers.ValidationError('Logo URL is too long.')
+            return cleaned
+        raise serializers.ValidationError('Provide an http(s) image URL or upload an image.')
 
     def validate_currency(self, value: str) -> str:
         cleaned = value.strip().upper()
@@ -162,3 +173,100 @@ class UserProfileUpdateSerializer(serializers.Serializer):
 
     def validate_profile_photo(self, value: str) -> str:
         return value.strip()
+
+
+class MasterNameSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=160)
+
+
+class MasterUpdateSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=160, required=False)
+    is_active = serializers.BooleanField(required=False)
+
+
+class AccessTypeCreateSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=160)
+    description = serializers.CharField(required=False, allow_blank=True, default='')
+
+
+class AccessTypeUpdateSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=160, required=False)
+    description = serializers.CharField(required=False, allow_blank=True)
+    is_active = serializers.BooleanField(required=False)
+
+
+class DesignationCreateSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=160)
+    parent_id = serializers.UUIDField(required=False, allow_null=True)
+
+
+class DesignationUpdateSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=160, required=False)
+    parent_id = serializers.UUIDField(required=False, allow_null=True)
+    is_active = serializers.BooleanField(required=False)
+
+
+class DesignationMoveSerializer(serializers.Serializer):
+    direction = serializers.ChoiceField(choices=['up', 'down'])
+
+
+class DesignationRepositionSerializer(serializers.Serializer):
+    target_id = serializers.UUIDField()
+    position = serializers.ChoiceField(choices=['before', 'after', 'inside'])
+
+
+class ShiftCreateSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=150)
+    start_time = serializers.TimeField(format='%H:%M', input_formats=['%H:%M', '%H:%M:%S'])
+    end_time = serializers.TimeField(format='%H:%M', input_formats=['%H:%M', '%H:%M:%S'])
+
+
+class ShiftUpdateSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=150, required=False)
+    start_time = serializers.TimeField(
+        format='%H:%M',
+        input_formats=['%H:%M', '%H:%M:%S'],
+        required=False,
+    )
+    end_time = serializers.TimeField(
+        format='%H:%M',
+        input_formats=['%H:%M', '%H:%M:%S'],
+        required=False,
+    )
+    is_active = serializers.BooleanField(required=False)
+
+
+class WorkWeekCreateSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=100)
+    working_days = serializers.ListField(child=serializers.IntegerField(min_value=1, max_value=7), allow_empty=False)
+
+
+class WorkWeekUpdateSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=100, required=False)
+    working_days = serializers.ListField(
+        child=serializers.IntegerField(min_value=1, max_value=7),
+        required=False,
+        allow_empty=False,
+    )
+    is_active = serializers.BooleanField(required=False)
+
+
+class HolidayCalendarCreateSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=150)
+    year = serializers.IntegerField(min_value=2000, max_value=2100)
+
+
+class HolidayCalendarUpdateSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=150, required=False)
+    year = serializers.IntegerField(min_value=2000, max_value=2100, required=False)
+    is_active = serializers.BooleanField(required=False)
+
+
+class HolidayCreateSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=150)
+    date = serializers.DateField()
+
+
+class HolidayUpdateSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=150, required=False)
+    date = serializers.DateField(required=False)

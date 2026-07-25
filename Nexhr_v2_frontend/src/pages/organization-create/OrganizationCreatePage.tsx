@@ -18,7 +18,7 @@ const ORGANIZATION_SIZES = [
 ];
 
 const INDUSTRY_ICONS: Record<string, string> = {
-  it: '💻',
+  'information technology': '💻',
   healthcare: '🏥',
   education: '🎓',
   finance: '🏦',
@@ -29,6 +29,10 @@ const INDUSTRY_ICONS: Record<string, string> = {
   logistics: '🚚',
   others: '🏢',
 };
+
+function industryIcon(name: string): string {
+  return INDUSTRY_ICONS[name.trim().toLowerCase()] ?? '🏢';
+}
 
 export function OrganizationCreatePage() {
   const auth = useAuth();
@@ -162,7 +166,7 @@ export function OrganizationCreatePage() {
                     onClick={() => setSelectedIndustry(industry)}
                   >
                     <span className="industry-card__icon">
-                      {INDUSTRY_ICONS[industry.code] ?? '🏢'}
+                      {industryIcon(industry.name)}
                     </span>
                     <span className="industry-card__name">{industry.name}</span>
                   </button>

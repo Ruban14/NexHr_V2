@@ -8,6 +8,11 @@ import { HomePage } from './pages/home/HomePage';
 import { LoginPage } from './pages/login/LoginPage';
 import { OrganizationCreatePage } from './pages/organization-create/OrganizationCreatePage';
 import { OrganizationEditPage } from './pages/organization-edit/OrganizationEditPage';
+import { DesignationsPage } from './pages/organization-setup/DesignationsPage';
+import { HolidaysPage } from './pages/organization-setup/HolidaysPage';
+import { MasterPage } from './pages/organization-setup/MasterPage';
+import { OrganizationSetupLayout } from './pages/organization-setup/OrganizationSetupPage';
+import { OrganizationSetupOverviewPage } from './pages/organization-setup/OrganizationSetupOverviewPage';
 import { ProfileEditPage } from './pages/profile-edit/ProfileEditPage';
 import { RegisterPage } from './pages/register/RegisterPage';
 import { ResetPasswordPage } from './pages/reset-password/ResetPasswordPage';
@@ -47,6 +52,17 @@ export default function App() {
             >
               <Route index element={<HomePage />} />
               <Route path="organization" element={<OrganizationEditPage />} />
+              <Route path="setup" element={<OrganizationSetupLayout />}>
+                <Route index element={<OrganizationSetupOverviewPage />} />
+                <Route path="departments" element={<MasterPage masterKey="departments" />} />
+                <Route path="designations" element={<DesignationsPage />} />
+                <Route path="employee-types" element={<MasterPage masterKey="employee-types" />} />
+                <Route path="access-types" element={<MasterPage masterKey="access-types" />} />
+                <Route path="shifts" element={<MasterPage masterKey="shifts" />} />
+                <Route path="work-weeks" element={<MasterPage masterKey="work-weeks" />} />
+                <Route path="leave-types" element={<MasterPage masterKey="leave-types" />} />
+                <Route path="holidays" element={<HolidaysPage />} />
+              </Route>
               <Route path="profile" element={<ProfileEditPage />} />
               <Route path="settings" element={<SettingsPage />} />
             </Route>

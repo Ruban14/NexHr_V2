@@ -39,13 +39,24 @@
 }
 
 .nex-btn--primary {
-  background: var(--color-brand-600);
+  background: var(--theme-default);
   color: var(--color-on-brand);
   box-shadow: var(--shadow-sm);
 }
 
 .nex-btn--primary:hover:not(:disabled) {
   background: var(--color-brand-700);
+  transform: translateY(-1px);
+}
+
+.nex-btn--danger {
+  background: var(--color-danger-500);
+  color: #fff;
+  box-shadow: var(--shadow-sm);
+}
+
+.nex-btn--danger:hover:not(:disabled) {
+  background: var(--color-danger-600);
   transform: translateY(-1px);
 }
 

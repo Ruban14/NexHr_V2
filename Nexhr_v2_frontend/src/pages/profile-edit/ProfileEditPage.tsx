@@ -6,6 +6,7 @@ import { useAuth } from '../../auth/AuthContext';
 import { tokenStorage } from '../../auth/tokenStorage';
 import { Button } from '../../components/Button';
 import { useWorkspace } from '../../workspace/WorkspaceContext';
+import { getInitial } from '../../utils/initials';
 import '../organization-edit/OrganizationEditPage.css';
 
 const GENDERS = [
@@ -109,7 +110,7 @@ export function ProfileEditPage() {
     }
   }
 
-  const previewInitial = (displayName[0] || firstName[0] || 'U').toUpperCase();
+  const previewInitial = getInitial(displayName, firstName, profile?.email, 'U');
 
   return (
     <div className="settings-page">

@@ -1,0 +1,14 @@
+.master-manager {
+  min-width: 0;
+}
+
+.master-desc {
+  margin-top: 0.2rem;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.master-count {
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+}

@@ -1,0 +1,104 @@
+.icon-action {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.icon-action:hover:not(:disabled),
+.icon-action:focus-visible:not(:disabled) {
+  background: var(--color-surface-muted);
+  color: var(--color-text-primary);
+  outline: none;
+}
+
+.icon-action:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.icon-action--danger:hover:not(:disabled),
+.icon-action--danger:focus-visible:not(:disabled) {
+  color: var(--color-danger-600);
+  background: rgba(220, 53, 69, 0.08);
+}
+
+.icon-action--success:hover:not(:disabled),
+.icon-action--success:focus-visible:not(:disabled) {
+  color: var(--color-success-600);
+  background: rgba(25, 135, 84, 0.1);
+}
+
+.icon-action--warning:hover:not(:disabled),
+.icon-action--warning:focus-visible:not(:disabled) {
+  color: #b45309;
+  background: rgba(245, 158, 11, 0.12);
+}
+
+.icon-action[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%) translateY(2px);
+  padding: 0.35rem 0.55rem;
+  border-radius: 6px;
+  background: #171829;
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 500;
+  line-height: 1.2;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 120ms ease, transform 120ms ease, visibility 120ms ease;
+  z-index: 20;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
+}
+
+.icon-action[data-tooltip]::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 2px);
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: #171829;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 120ms ease, visibility 120ms ease;
+  z-index: 20;
+}
+
+.icon-action:hover:not(:disabled)::after,
+.icon-action:focus-visible:not(:disabled)::after {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0);
+}
+
+.icon-action:hover:not(:disabled)::before,
+.icon-action:focus-visible:not(:disabled)::before {
+  opacity: 1;
+  visibility: visible;
+}
+
+@media (prefers-color-scheme: dark) {
+  .icon-action[data-tooltip]::after {
+    background: #f2f3f8;
+    color: #171829;
+  }
+
+  .icon-action[data-tooltip]::before {
+    border-top-color: #f2f3f8;
+  }
+}

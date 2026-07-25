@@ -203,4 +203,4 @@ CORS_ALLOWED_ORIGINS = env_list(
 )
 CORS_ALLOW_CREDENTIALS = env_bool('CORS_ALLOW_CREDENTIALS', 'True')
 if default_headers:
-    CORS_ALLOW_HEADERS = (*default_headers,)
+    CORS_ALLOW_HEADERS = (*default_headers, 'x-branch-id')
