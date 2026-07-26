@@ -1,0 +1,13 @@
+You're invited to {{ organization_name }}
+
+Hi {{ display_name }},
+
+Your NexHr employee account is ready.
+
+Email: {{ email }}
+Temporary password: {{ temporary_password }}
+
+Sign in: {{ login_url }}
+
+You'll be asked to set a new password after your first login.
+If you weren't expecting this invite, contact your administrator.

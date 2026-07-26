@@ -25,9 +25,10 @@
   background:
     linear-gradient(
       155deg,
-      color-mix(in srgb, var(--color-brand-700) 92%, #0f172a) 0%,
-      var(--color-brand-600) 42%,
-      color-mix(in srgb, var(--color-brand-500) 78%, #38bdf8) 100%
+      #2f3180 0%,
+      #5c61f2 48%,
+      #7a7ff5 78%,
+      #ff9766 120%
     );
   color: #f8fafc;
 }

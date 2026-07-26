@@ -50,8 +50,8 @@
   transform: translateX(-50%) translateY(2px);
   padding: 0.35rem 0.55rem;
   border-radius: 6px;
-  background: #171829;
-  color: #fff;
+  background: var(--color-text-primary);
+  color: var(--color-surface-elevated);
   font-size: 0.72rem;
   font-weight: 500;
   line-height: 1.2;
@@ -61,7 +61,7 @@
   visibility: hidden;
   transition: opacity 120ms ease, transform 120ms ease, visibility 120ms ease;
   z-index: 20;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
+  box-shadow: var(--shadow-sm);
 }
 
 .icon-action[data-tooltip]::before {
@@ -71,7 +71,7 @@
   bottom: calc(100% + 2px);
   transform: translateX(-50%);
   border: 5px solid transparent;
-  border-top-color: #171829;
+  border-top-color: var(--color-text-primary);
   pointer-events: none;
   opacity: 0;
   visibility: hidden;
@@ -90,15 +90,4 @@
 .icon-action:focus-visible:not(:disabled)::before {
   opacity: 1;
   visibility: visible;
-}
-
-@media (prefers-color-scheme: dark) {
-  .icon-action[data-tooltip]::after {
-    background: #f2f3f8;
-    color: #171829;
-  }
-
-  .icon-action[data-tooltip]::before {
-    border-top-color: #f2f3f8;
-  }
 }

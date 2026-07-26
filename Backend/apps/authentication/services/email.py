@@ -63,3 +63,27 @@ class EmailService:
             html_template='authentication/emails/reset_password.html',
             context=context,
         )
+
+    @staticmethod
+    def send_employee_invite_email(
+        *,
+        email: str,
+        display_name: str,
+        organization_name: str,
+        temporary_password: str,
+    ) -> None:
+        """Send employee invite credentials for first login."""
+        context = {
+            'email': email,
+            'display_name': display_name or email.split('@')[0],
+            'organization_name': organization_name,
+            'temporary_password': temporary_password,
+            'login_url': f'{settings.FRONTEND_URL}/auth/login',
+        }
+        EmailService._send_branded_email(
+            subject=f"You're invited to {organization_name} on NexHr",
+            recipient_email=email,
+            text_template='authentication/emails/employee_invite.txt',
+            html_template='authentication/emails/employee_invite.html',
+            context=context,
+        )

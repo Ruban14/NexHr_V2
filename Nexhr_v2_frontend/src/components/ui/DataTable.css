@@ -1,8 +1,9 @@
 .data-table-wrap {
   overflow: auto;
   border: 1px solid var(--color-border-subtle);
-  border-radius: var(--radius-lg);
+  border-radius: 16px;
   background: var(--color-surface-card);
+  box-shadow: var(--shadow-sm);
 }
 
 .data-table {

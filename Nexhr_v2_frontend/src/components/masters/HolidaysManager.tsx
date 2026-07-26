@@ -22,6 +22,11 @@ import { SearchBar } from '../ui/SearchBar';
 import { StatusBadge } from '../ui/StatusBadge';
 import { Toolbar } from '../ui/Toolbar';
 import './DesignationTree.css';
+import {
+  CalendarIcon,
+  HolidayMonthlyCalendar,
+} from './HolidayMonthlyCalendar';
+import './HolidayMonthlyCalendar.css';
 import './MasterManager.css';
 
 const currentYear = new Date().getFullYear();
@@ -43,6 +48,7 @@ export function HolidaysManager() {
   const [calendarId, setCalendarId] = useState('');
   const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [search, setSearch] = useState('');
+  const [calendarOpen, setCalendarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -50,6 +56,7 @@ export function HolidaysManager() {
   const [editingCalendar, setEditingCalendar] = useState<HolidayCalendar | null>(null);
   const [holidayFormOpen, setHolidayFormOpen] = useState(false);
   const [editingHoliday, setEditingHoliday] = useState<Holiday | null>(null);
+  const [draftDate, setDraftDate] = useState('');
   const [formLoading, setFormLoading] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -61,6 +68,13 @@ export function HolidaysManager() {
   const [confirmLoading, setConfirmLoading] = useState(false);
 
   const selectedCalendar = calendars.find((item) => item.id === calendarId) || null;
+  const year = selectedCalendar?.year ?? currentYear;
+
+  const filteredHolidays = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return holidays;
+    return holidays.filter((item) => item.name.toLowerCase().includes(query));
+  }, [holidays, search]);
 
   const loadCalendars = useCallback(async () => {
     const token = tokenStorage.getAccessToken();
@@ -76,9 +90,9 @@ export function HolidaysManager() {
       setHolidays([]);
       return;
     }
-    const data = await organizationApi.listHolidays(token, id, search.trim());
+    const data = await organizationApi.listHolidays(token, id);
     setHolidays(data);
-  }, [search]);
+  }, []);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -123,8 +137,9 @@ export function HolidaysManager() {
     setCalendarFormOpen(true);
   }
 
-  function openCreateHoliday() {
+  function openCreateHoliday(date = '') {
     setEditingHoliday(null);
+    setDraftDate(date);
     setFormError(null);
     setFieldErrors({});
     setHolidayFormOpen(true);
@@ -132,9 +147,18 @@ export function HolidaysManager() {
 
   function openEditHoliday(row: Holiday) {
     setEditingHoliday(row);
+    setDraftDate(row.date);
     setFormError(null);
     setFieldErrors({});
     setHolidayFormOpen(true);
+  }
+
+  function handleDayClick(isoDate: string, holidaysOnDay: Holiday[]) {
+    if (holidaysOnDay.length) {
+      openEditHoliday(holidaysOnDay[0]);
+      return;
+    }
+    openCreateHoliday(isoDate);
   }
 
   async function handleCalendarSubmit(values: Record<string, string>) {
@@ -144,17 +168,17 @@ export function HolidaysManager() {
     setFormError(null);
     setFieldErrors({});
     try {
-      const year = Number(values.year);
+      const nextYear = Number(values.year);
       if (editingCalendar) {
         const updated = await organizationApi.updateHolidayCalendar(token, editingCalendar.id, {
           name: values.name,
-          year,
+          year: nextYear,
         });
         setCalendars((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
       } else {
         const created = await organizationApi.createHolidayCalendar(token, {
           name: values.name,
-          year,
+          year: nextYear,
         });
         setCalendars((prev) => [created, ...prev]);
         setCalendarId(created.id);
@@ -225,6 +249,7 @@ export function HolidaysManager() {
           );
           return next;
         });
+        setCalendarOpen(false);
       } else {
         await organizationApi.deleteHoliday(token, pendingDelete.item.id);
         await loadHolidays(calendarId);
@@ -278,6 +303,10 @@ export function HolidaysManager() {
     [],
   );
 
+  const holidayInitialValues = editingHoliday
+    ? { name: editingHoliday.name, date: editingHoliday.date }
+    : { name: '', date: draftDate };
+
   return (
     <section className="master-manager">
       <PageHeader
@@ -288,7 +317,7 @@ export function HolidaysManager() {
             <Button variant="secondary" onClick={openCreateCalendar}>
               Add calendar
             </Button>
-            <Button onClick={openCreateHoliday} disabled={!calendarId}>
+            <Button onClick={() => openCreateHoliday()} disabled={!calendarId}>
               Add holiday
             </Button>
           </>
@@ -313,6 +342,16 @@ export function HolidaysManager() {
                 ))}
               </select>
             </label>
+            <button
+              type="button"
+              className="holiday-calendar-icon-btn"
+              aria-label="Open monthly holiday calendar"
+              title="Monthly calendar"
+              disabled={!calendarId}
+              onClick={() => setCalendarOpen(true)}
+            >
+              <CalendarIcon />
+            </button>
             <SearchBar
               value={search}
               placeholder="Search holidays…"
@@ -363,13 +402,13 @@ export function HolidaysManager() {
       ) : (
         <DataTable
           columns={columns}
-          rows={holidays}
+          rows={filteredHolidays}
           empty={
             <EmptyState
               title="No holidays in this calendar"
-              description="Add holiday dates for the selected year."
+              description="Add holiday dates for the selected year, or open the monthly calendar."
               action={
-                <Button onClick={openCreateHoliday} disabled={!calendarId}>
+                <Button onClick={() => openCreateHoliday()} disabled={!calendarId}>
                   Add holiday
                 </Button>
               }
@@ -377,6 +416,14 @@ export function HolidaysManager() {
           }
         />
       )}
+
+      <HolidayMonthlyCalendar
+        open={calendarOpen}
+        year={year}
+        holidays={holidays}
+        onClose={() => setCalendarOpen(false)}
+        onDayClick={handleDayClick}
+      />
 
       <FormModal
         open={calendarFormOpen}
@@ -412,11 +459,7 @@ export function HolidaysManager() {
           { name: 'name', label: 'Name', required: true, maxLength: 150 },
           { name: 'date', label: 'Date', type: 'date', required: true },
         ]}
-        initialValues={
-          editingHoliday
-            ? { name: editingHoliday.name, date: editingHoliday.date }
-            : { name: '', date: '' }
-        }
+        initialValues={holidayInitialValues}
         submitLabel={editingHoliday ? 'Save changes' : 'Create'}
         loading={formLoading}
         error={formError}

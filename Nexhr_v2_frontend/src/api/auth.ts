@@ -4,6 +4,8 @@ import type {
   BranchMembership,
   Department,
   Designation,
+  EmployeeCreateRequest,
+  EmployeeRecord,
   EmployeeType,
   Holiday,
   HolidayCalendar,
@@ -51,6 +53,11 @@ export const authApi = {
   resetPassword: (payload: { token: string; password: string }) =>
     apiRequest<void>('/auth/reset-password', { body: payload, skipAuth: true }),
 
+  changePassword: (
+    token: string,
+    payload: { current_password: string; password: string },
+  ) => apiRequest<User>('/auth/change-password', { body: payload, token }),
+
   verifyEmail: (token: string) =>
     apiRequest<void>('/auth/verify-email', { body: { token }, skipAuth: true }),
 
@@ -81,7 +88,7 @@ export const organizationApi = {
 
   getProfile: (token: string) => apiRequest<UserProfileDetail>('/organization/profile', { token }),
 
-  updateProfile: (token: string, payload: UserProfileUpdateRequest) =>
+  updateProfile: (token: string, payload: FormData | UserProfileUpdateRequest) =>
     apiRequest<UserProfileDetail>('/organization/profile', {
       token,
       method: 'PATCH',
@@ -313,4 +320,36 @@ export const organizationApi = {
 
   deleteHoliday: (token: string, id: string) =>
     apiRequest<void>(`/organization/holidays/${id}`, { token, method: 'DELETE' }),
+
+  listEmployees: (
+    token: string,
+    params: MasterListParams & { lifecycle_status_id?: string } = {},
+  ) =>
+    apiRequest<PaginatedResponse<EmployeeRecord>>(
+      `/organization/employees${buildQuery(params)}`,
+      { token },
+    ),
+
+  getEmployee: (token: string, id: string) =>
+    apiRequest<EmployeeRecord>(`/organization/employees/${id}`, { token }),
+
+  createEmployee: (token: string, payload: EmployeeCreateRequest) =>
+    apiRequest<EmployeeRecord>('/organization/employees', { token, body: payload }),
+
+  updateEmployee: (token: string, id: string, payload: FormData | Record<string, unknown>) =>
+    apiRequest<EmployeeRecord>(`/organization/employees/${id}`, {
+      token,
+      method: 'PATCH',
+      body: payload,
+    }),
+
+  transitionEmployee: (
+    token: string,
+    id: string,
+    payload: { to_status_id: string; remarks?: string },
+  ) =>
+    apiRequest<EmployeeRecord>(`/organization/employees/${id}/transition`, {
+      token,
+      body: payload,
+    }),
 };

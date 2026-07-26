@@ -1,7 +1,9 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Button } from '../Button';
 import { Modal } from './Modal';
 import './FormModal.css';
+
+const EMPTY_INITIAL_VALUES: Record<string, string> = {};
 
 export const WEEKDAY_OPTIONS = [
   { value: '1', label: 'Mon' },
@@ -49,7 +51,7 @@ export function FormModal({
   open,
   title,
   fields,
-  initialValues = {},
+  initialValues = EMPTY_INITIAL_VALUES,
   submitLabel = 'Save',
   loading = false,
   error = null,
@@ -60,16 +62,25 @@ export function FormModal({
 }: FormModalProps) {
   const [values, setValues] = useState<Record<string, string>>({});
   const [localErrors, setLocalErrors] = useState<Record<string, string>>({});
+  const wasOpenRef = useRef(false);
+  const fieldsRef = useRef(fields);
+  const initialValuesRef = useRef(initialValues);
+  fieldsRef.current = fields;
+  initialValuesRef.current = initialValues;
 
+  // Reset values only when the modal opens — not on every parent re-render
+  // (inline `fields` / `initialValues` props would otherwise wipe typed input).
   useEffect(() => {
-    if (!open) return;
-    const next: Record<string, string> = {};
-    for (const field of fields) {
-      next[field.name] = initialValues[field.name] ?? '';
+    if (open && !wasOpenRef.current) {
+      const next: Record<string, string> = {};
+      for (const field of fieldsRef.current) {
+        next[field.name] = initialValuesRef.current[field.name] ?? '';
+      }
+      setValues(next);
+      setLocalErrors({});
     }
-    setValues(next);
-    setLocalErrors({});
-  }, [open, fields, initialValues]);
+    wasOpenRef.current = open;
+  }, [open]);
 
   function reset() {
     const next: Record<string, string> = {};

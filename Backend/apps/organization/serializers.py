@@ -2,9 +2,145 @@
 
 from __future__ import annotations
 
+import re
+
 from rest_framework import serializers
 
 from apps.organization.models import Organization
+
+IFSC_PATTERN = re.compile(r'^[A-Z]{4}0[A-Z0-9]{6}$')
+ACCOUNT_NUMBER_PATTERN = re.compile(r'^[A-Za-z0-9]{6,64}$')
+
+
+def _validate_bank_account_number(value: str) -> str:
+    cleaned = value.strip().replace(' ', '').replace('-', '')
+    if not cleaned:
+        return ''
+    if not ACCOUNT_NUMBER_PATTERN.fullmatch(cleaned):
+        raise serializers.ValidationError('Enter a valid account number (6–64 letters or digits).')
+    return cleaned
+
+
+def _validate_bank_ifsc_code(value: str) -> str:
+    cleaned = value.strip().upper().replace(' ', '')
+    if not cleaned:
+        return ''
+    if not IFSC_PATTERN.fullmatch(cleaned):
+        raise serializers.ValidationError('Enter a valid 11-character IFSC code (e.g. HDFC0001234).')
+    return cleaned
+
+
+def _parse_json_list(value, *, field_name: str):
+    if value is None or value == '':
+        return None
+    if isinstance(value, list):
+        return value
+    if isinstance(value, str):
+        import json
+
+        try:
+            parsed = json.loads(value)
+        except json.JSONDecodeError as exc:
+            raise serializers.ValidationError({field_name: ['Provide a valid JSON list.']}) from exc
+        if not isinstance(parsed, list):
+            raise serializers.ValidationError({field_name: ['Provide a JSON list.']})
+        return parsed
+    raise serializers.ValidationError({field_name: ['Provide a JSON list.']})
+
+
+def _as_plain_dict(data) -> dict:
+    """Convert QueryDict/multipart data to a plain dict.
+
+    DRF treats objects with ``getlist`` as HTML form input and then ignores
+    JSON-encoded nested lists such as ``bank_details``.
+    """
+    if isinstance(data, dict) and not hasattr(data, 'getlist'):
+        return dict(data)
+    if hasattr(data, 'keys'):
+        return {key: data.get(key) for key in data.keys()}
+    return dict(data)
+
+
+class EmployeeBankDetailItemSerializer(serializers.Serializer):
+    account_holder_name = serializers.CharField(max_length=150, required=False, allow_blank=True, default='')
+    bank_name = serializers.CharField(max_length=150, required=False, allow_blank=True, default='')
+    account_number = serializers.CharField(max_length=64, required=False, allow_blank=True, default='')
+    ifsc_code = serializers.CharField(max_length=20, required=False, allow_blank=True, default='')
+    is_primary = serializers.BooleanField(required=False, default=False)
+
+    def validate_account_number(self, value: str) -> str:
+        return _validate_bank_account_number(value)
+
+    def validate_ifsc_code(self, value: str) -> str:
+        return _validate_bank_ifsc_code(value)
+
+    def validate_is_primary(self, value):
+        if isinstance(value, str):
+            return value.strip().lower() in {'1', 'true', 'yes', 'on'}
+        return bool(value)
+
+
+class EmployeeEducationItemSerializer(serializers.Serializer):
+    degree = serializers.CharField(max_length=150, required=False, allow_blank=True, default='')
+    institution = serializers.CharField(max_length=255, required=False, allow_blank=True, default='')
+    field_of_study = serializers.CharField(max_length=150, required=False, allow_blank=True, default='')
+    year_of_passing = serializers.IntegerField(required=False, allow_null=True, min_value=1950, max_value=2100)
+    grade = serializers.CharField(max_length=64, required=False, allow_blank=True, default='')
+
+    def to_internal_value(self, data):
+        mutable = dict(data) if isinstance(data, dict) else data
+        if isinstance(mutable, dict) and mutable.get('year_of_passing') in ('', None):
+            mutable = {**mutable, 'year_of_passing': None}
+        return super().to_internal_value(mutable)
+
+    def validate_year_of_passing(self, value):
+        if value in ('', None):
+            return None
+        return value
+
+
+class EmployeeJobExperienceItemSerializer(serializers.Serializer):
+    company_name = serializers.CharField(max_length=255, required=False, allow_blank=True, default='')
+    job_title = serializers.CharField(max_length=150, required=False, allow_blank=True, default='')
+    start_date = serializers.DateField(
+        required=False,
+        allow_null=True,
+        input_formats=['%Y-%m-%d', 'iso-8601'],
+    )
+    end_date = serializers.DateField(
+        required=False,
+        allow_null=True,
+        input_formats=['%Y-%m-%d', 'iso-8601'],
+    )
+    is_current = serializers.BooleanField(required=False, default=False)
+    location = serializers.CharField(max_length=150, required=False, allow_blank=True, default='')
+    description = serializers.CharField(required=False, allow_blank=True, default='')
+
+    def to_internal_value(self, data):
+        mutable = dict(data) if isinstance(data, dict) else data
+        if isinstance(mutable, dict):
+            for key in ('start_date', 'end_date'):
+                if mutable.get(key) in ('', None):
+                    mutable = {**mutable, key: None}
+            if isinstance(mutable.get('is_current'), str):
+                mutable = {
+                    **mutable,
+                    'is_current': mutable.get('is_current', '').strip().lower()
+                    in {'1', 'true', 'yes', 'on'},
+                }
+        return super().to_internal_value(mutable)
+
+    def validate(self, attrs):
+        is_current = bool(attrs.get('is_current'))
+        start = attrs.get('start_date')
+        end = attrs.get('end_date')
+        if is_current:
+            attrs['end_date'] = None
+        elif start and end and end < start:
+            raise serializers.ValidationError(
+                {'end_date': ['End date must be on or after start date.']},
+            )
+        return attrs
 
 
 class IndustryTypeSerializer(serializers.Serializer):
@@ -127,10 +263,30 @@ class UserProfileUpdateSerializer(serializers.Serializer):
     first_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
     last_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
     display_name = serializers.CharField(max_length=255, required=False, allow_blank=True)
-    profile_photo = serializers.URLField(required=False, allow_blank=True, max_length=200)
+    profile_photo = serializers.FileField(required=False, allow_null=True)
+    clear_profile_photo = serializers.BooleanField(required=False, default=False)
     mobile_number = serializers.CharField(max_length=32, required=False, allow_blank=True)
     alternate_mobile = serializers.CharField(max_length=32, required=False, allow_blank=True)
-    date_of_birth = serializers.DateField(required=False, allow_null=True)
+    emergency_contact_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
+    emergency_contact_relationship = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    emergency_contact_phone = serializers.CharField(max_length=32, required=False, allow_blank=True)
+    bank_details = EmployeeBankDetailItemSerializer(many=True, required=False)
+    education_details = EmployeeEducationItemSerializer(many=True, required=False)
+    job_experiences = EmployeeJobExperienceItemSerializer(many=True, required=False)
+    date_of_birth = serializers.DateField(required=False, allow_null=True, input_formats=['%Y-%m-%d', 'iso-8601'])
+
+    def to_internal_value(self, data):
+        mutable = _as_plain_dict(data)
+        if mutable.get('date_of_birth') == '':
+            mutable['date_of_birth'] = None
+        for key in ('bank_details', 'education_details', 'job_experiences'):
+            if key in mutable:
+                parsed = _parse_json_list(mutable.get(key), field_name=key)
+                if parsed is None:
+                    mutable.pop(key, None)
+                else:
+                    mutable[key] = parsed
+        return super().to_internal_value(mutable)
     gender = serializers.ChoiceField(
         choices=['male', 'female', 'other', 'prefer_not_to_say', ''],
         required=False,
@@ -147,11 +303,7 @@ class UserProfileUpdateSerializer(serializers.Serializer):
     address_line1 = serializers.CharField(max_length=255, required=False, allow_blank=True)
     postal_code = serializers.CharField(max_length=20, required=False, allow_blank=True)
     mother_language = serializers.CharField(max_length=100, required=False, allow_blank=True)
-    languages_known = serializers.ListField(
-        child=serializers.CharField(max_length=100),
-        required=False,
-        allow_empty=True,
-    )
+    languages_known = serializers.CharField(required=False, allow_blank=True)
 
     def validate_mobile_number(self, value: str) -> str:
         cleaned = value.strip()
@@ -171,8 +323,49 @@ class UserProfileUpdateSerializer(serializers.Serializer):
             raise serializers.ValidationError('Enter a valid mobile number.')
         return cleaned
 
-    def validate_profile_photo(self, value: str) -> str:
-        return value.strip()
+    def validate_emergency_contact_phone(self, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            return ''
+        digits = ''.join(ch for ch in cleaned if ch.isdigit())
+        if len(digits) < 7 or len(digits) > 20:
+            raise serializers.ValidationError('Enter a valid phone number.')
+        return cleaned
+
+    def validate_profile_photo(self, value):
+        from django.conf import settings
+
+        if value is None:
+            return value
+        content_type = getattr(value, 'content_type', '') or ''
+        allowed = getattr(settings, 'PROFILE_PHOTO_CONTENT_TYPES', ())
+        if content_type not in allowed:
+            raise serializers.ValidationError('Upload a JPG, PNG, WEBP, or GIF image.')
+        max_bytes = getattr(settings, 'PROFILE_PHOTO_MAX_BYTES', 2 * 1024 * 1024)
+        if value.size > max_bytes:
+            raise serializers.ValidationError('Photo must be 2 MB or smaller.')
+        return value
+
+    def validate_languages_known(self, value: str):
+        if not value or not str(value).strip():
+            return []
+        raw = str(value).strip()
+        if raw.startswith('['):
+            import json
+
+            try:
+                parsed = json.loads(raw)
+            except json.JSONDecodeError as exc:
+                raise serializers.ValidationError('Provide languages as a comma-separated list.') from exc
+            if not isinstance(parsed, list):
+                raise serializers.ValidationError('Provide languages as a comma-separated list.')
+            return [str(item).strip() for item in parsed if str(item).strip()]
+        return [part.strip() for part in raw.split(',') if part.strip()]
+
+    def validate_clear_profile_photo(self, value):
+        if isinstance(value, str):
+            return value.strip().lower() in {'1', 'true', 'yes', 'on'}
+        return bool(value)
 
 
 class MasterNameSerializer(serializers.Serializer):
@@ -270,3 +463,139 @@ class HolidayCreateSerializer(serializers.Serializer):
 class HolidayUpdateSerializer(serializers.Serializer):
     name = serializers.CharField(max_length=150, required=False)
     date = serializers.DateField(required=False)
+
+
+class EmployeeCreateSerializer(serializers.Serializer):
+    email = serializers.EmailField(required=True)
+    first_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
+    last_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
+    display_name = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    designation_id = serializers.UUIDField(required=False, allow_null=True)
+    employee_type_id = serializers.UUIDField(required=False, allow_null=True)
+    access_type_id = serializers.UUIDField(required=False, allow_null=True)
+    joining_date = serializers.DateField(required=False, allow_null=True)
+
+
+class EmployeeUpdateSerializer(serializers.Serializer):
+    email = serializers.EmailField(required=False, allow_blank=True)
+    first_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
+    last_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
+    display_name = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    profile_photo = serializers.FileField(required=False, allow_null=True)
+    clear_profile_photo = serializers.BooleanField(required=False, default=False)
+    mobile_number = serializers.CharField(max_length=32, required=False, allow_blank=True)
+    alternate_mobile = serializers.CharField(max_length=32, required=False, allow_blank=True)
+    emergency_contact_name = serializers.CharField(max_length=150, required=False, allow_blank=True)
+    emergency_contact_relationship = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    emergency_contact_phone = serializers.CharField(max_length=32, required=False, allow_blank=True)
+    bank_details = EmployeeBankDetailItemSerializer(many=True, required=False)
+    education_details = EmployeeEducationItemSerializer(many=True, required=False)
+    job_experiences = EmployeeJobExperienceItemSerializer(many=True, required=False)
+    date_of_birth = serializers.DateField(required=False, allow_null=True, input_formats=['%Y-%m-%d', 'iso-8601'])
+    gender = serializers.ChoiceField(
+        choices=['male', 'female', 'other', 'prefer_not_to_say', ''],
+        required=False,
+        allow_blank=True,
+    )
+    blood_group = serializers.ChoiceField(
+        choices=['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-', 'unknown', ''],
+        required=False,
+        allow_blank=True,
+    )
+    country = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    state = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    city = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    address_line1 = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    postal_code = serializers.CharField(max_length=20, required=False, allow_blank=True)
+    mother_language = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    languages_known = serializers.CharField(required=False, allow_blank=True)
+    designation_id = serializers.UUIDField(required=False, allow_null=True)
+    employee_type_id = serializers.UUIDField(required=False, allow_null=True)
+    access_type_id = serializers.UUIDField(required=False, allow_null=True)
+    branch_id = serializers.UUIDField(required=False, allow_null=True)
+    joining_date = serializers.DateField(required=False, allow_null=True, input_formats=['%Y-%m-%d', 'iso-8601'])
+    exit_date = serializers.DateField(required=False, allow_null=True, input_formats=['%Y-%m-%d', 'iso-8601'])
+    is_active = serializers.BooleanField(required=False)
+
+    def to_internal_value(self, data):
+        mutable = _as_plain_dict(data)
+        for key in ('date_of_birth', 'joining_date', 'exit_date', 'designation_id', 'employee_type_id', 'access_type_id'):
+            if mutable.get(key) == '':
+                mutable[key] = None
+        if 'is_active' in mutable and isinstance(mutable.get('is_active'), str):
+            mutable['is_active'] = mutable.get('is_active', '').strip().lower() in {'1', 'true', 'yes', 'on'}
+        for key in ('bank_details', 'education_details', 'job_experiences'):
+            if key in mutable:
+                parsed = _parse_json_list(mutable.get(key), field_name=key)
+                if parsed is None:
+                    mutable.pop(key, None)
+                else:
+                    mutable[key] = parsed
+        return super().to_internal_value(mutable)
+
+    def validate_mobile_number(self, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            return ''
+        digits = ''.join(ch for ch in cleaned if ch.isdigit())
+        if len(digits) < 7 or len(digits) > 20:
+            raise serializers.ValidationError('Enter a valid mobile number.')
+        return cleaned
+
+    def validate_alternate_mobile(self, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            return ''
+        digits = ''.join(ch for ch in cleaned if ch.isdigit())
+        if len(digits) < 7 or len(digits) > 20:
+            raise serializers.ValidationError('Enter a valid mobile number.')
+        return cleaned
+
+    def validate_emergency_contact_phone(self, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            return ''
+        digits = ''.join(ch for ch in cleaned if ch.isdigit())
+        if len(digits) < 7 or len(digits) > 20:
+            raise serializers.ValidationError('Enter a valid phone number.')
+        return cleaned
+
+    def validate_profile_photo(self, value):
+        from django.conf import settings
+
+        if value is None:
+            return value
+        content_type = getattr(value, 'content_type', '') or ''
+        allowed = getattr(settings, 'PROFILE_PHOTO_CONTENT_TYPES', ())
+        if content_type not in allowed:
+            raise serializers.ValidationError('Upload a JPG, PNG, WEBP, or GIF image.')
+        max_bytes = getattr(settings, 'PROFILE_PHOTO_MAX_BYTES', 2 * 1024 * 1024)
+        if value.size > max_bytes:
+            raise serializers.ValidationError('Photo must be 2 MB or smaller.')
+        return value
+
+    def validate_languages_known(self, value: str):
+        if not value or not str(value).strip():
+            return []
+        raw = str(value).strip()
+        if raw.startswith('['):
+            import json
+
+            try:
+                parsed = json.loads(raw)
+            except json.JSONDecodeError as exc:
+                raise serializers.ValidationError('Provide languages as a comma-separated list.') from exc
+            if not isinstance(parsed, list):
+                raise serializers.ValidationError('Provide languages as a comma-separated list.')
+            return [str(item).strip() for item in parsed if str(item).strip()]
+        return [part.strip() for part in raw.split(',') if part.strip()]
+
+    def validate_clear_profile_photo(self, value):
+        if isinstance(value, str):
+            return value.strip().lower() in {'1', 'true', 'yes', 'on'}
+        return bool(value)
+
+
+class EmployeeLifecycleTransitionSerializer(serializers.Serializer):
+    to_status_id = serializers.UUIDField()
+    remarks = serializers.CharField(required=False, allow_blank=True, default='')

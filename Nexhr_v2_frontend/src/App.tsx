@@ -6,8 +6,11 @@ import { GuestOnly, RequireAuth } from './components/RouteGuards';
 import { ForgotPasswordPage } from './pages/forgot-password/ForgotPasswordPage';
 import { HomePage } from './pages/home/HomePage';
 import { LoginPage } from './pages/login/LoginPage';
+import { ChangePasswordPage } from './pages/change-password/ChangePasswordPage';
 import { OrganizationCreatePage } from './pages/organization-create/OrganizationCreatePage';
 import { OrganizationEditPage } from './pages/organization-edit/OrganizationEditPage';
+import { EmployeesPage } from './pages/employees/EmployeesPage';
+import { EmployeeDetailPage } from './pages/employees/EmployeeDetailPage';
 import { DesignationsPage } from './pages/organization-setup/DesignationsPage';
 import { HolidaysPage } from './pages/organization-setup/HolidaysPage';
 import { MasterPage } from './pages/organization-setup/MasterPage';
@@ -37,6 +40,7 @@ export default function App() {
             <Route path="/auth/verify-email" element={<VerifyEmailPage />} />
 
             <Route element={<RequireAuth />}>
+              <Route path="/auth/change-password" element={<ChangePasswordPage />} />
               <Route path="/organizations/create" element={<OrganizationCreatePage />} />
             </Route>
           </Route>
@@ -51,6 +55,8 @@ export default function App() {
               }
             >
               <Route index element={<HomePage />} />
+              <Route path="employees" element={<EmployeesPage />} />
+              <Route path="employees/:employeeId" element={<EmployeeDetailPage />} />
               <Route path="organization" element={<OrganizationEditPage />} />
               <Route path="setup" element={<OrganizationSetupLayout />}>
                 <Route index element={<OrganizationSetupOverviewPage />} />

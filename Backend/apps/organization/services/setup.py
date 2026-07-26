@@ -12,13 +12,16 @@ from apps.authentication.models import User
 from apps.core.exceptions import ConflictServiceError, NotFoundServiceError, ValidationServiceError
 from apps.organization.models import (
     AccessType,
+    Employee,
+    EmployeeLifecycleStatus,
     EmployeeType,
     IndustryType,
     Organization,
     OrganizationBranch,
     OrganizationMembership,
-    UserProfile,
 )
+from apps.organization.services.lifecycle import EmployeeLifecycleEngine
+from apps.organization.services.workspace import WorkspaceService
 
 DEFAULT_INDUSTRIES: tuple[str, ...] = (
     'Information Technology',
@@ -35,7 +38,7 @@ DEFAULT_INDUSTRIES: tuple[str, ...] = (
 
 
 class OrganizationSetupService:
-    """Creates profile, organization, and admin membership after email verification."""
+    """Creates employee profile, organization, and admin membership after email verification."""
 
     @classmethod
     def ensure_industry_defaults(cls) -> None:
@@ -54,13 +57,13 @@ class OrganizationSetupService:
 
     @classmethod
     def get_setup_status(cls, user: User) -> dict:
-        profile = UserProfile.objects.filter(user=user).first()
+        employee_exists = Employee.objects.filter(user=user).exists()
         membership_exists = OrganizationMembership.objects.filter(user=user).exists()
         owned = Organization.objects.filter(owner=user).exists()
         needs_setup = not membership_exists and not owned
         return {
             'needs_setup': needs_setup,
-            'has_profile': profile is not None,
+            'has_profile': employee_exists,
             'has_membership': membership_exists,
             'has_owned_organization': owned,
         }
@@ -92,10 +95,11 @@ class OrganizationSetupService:
         display_name = (payload.get('display_name') or legal_name).strip() or legal_name
         email = (payload.get('email') or user.email).strip()
         website = payload.get('website') or ''
+        phone = payload.get('phone') or ''
 
-        profile = cls._ensure_admin_profile(user=user, phone=payload.get('phone') or '')
         access_type = cls._ensure_admin_access_type(industry=industry)
         employee_type = cls._ensure_default_employee_type()
+        active_status = cls._get_active_or_initial_lifecycle()
 
         organization = Organization.objects.create(
             organization_code=cls._generate_organization_code(display_name),
@@ -104,7 +108,7 @@ class OrganizationSetupService:
             industry_type=industry,
             organization_size=payload.get('organization_size') or '',
             email=email,
-            phone=payload['phone'],
+            phone=phone,
             website=website,
             country=payload.get('country') or '',
             state=payload.get('state') or '',
@@ -118,13 +122,36 @@ class OrganizationSetupService:
         )
 
         headquarters = cls._create_headquarters_branch(organization=organization)
+        employee_code = cls._generate_employee_code(organization)
+        person_name = user.full_name or user.email.split('@')[0]
+
+        employee = Employee.objects.create(
+            organization=organization,
+            branch=headquarters,
+            user=user,
+            lifecycle_status=active_status,
+            employee_code=employee_code,
+            email=user.email,
+            first_name=user.first_name or '',
+            last_name=user.last_name or '',
+            display_name=person_name,
+            mobile_number=phone,
+            employee_type=employee_type,
+            access_type=access_type,
+            joining_date=date.today(),
+            is_active=True,
+            is_profile_completed=bool(person_name and phone),
+            completed_status='done' if (person_name and phone) else '',
+            created_by=user,
+            updated_by=user,
+        )
 
         membership = OrganizationMembership.objects.create(
             branch=headquarters,
             user=user,
             employee_type=employee_type,
             access_type=access_type,
-            employee_code=cls._generate_employee_code(organization),
+            employee_code=employee_code,
             status=OrganizationMembership.Status.ACTIVE,
             joining_date=date.today(),
             created_by=user,
@@ -134,8 +161,15 @@ class OrganizationSetupService:
         return {
             'organization': cls._serialize_organization(organization),
             'membership': cls._serialize_membership(membership),
-            'profile': cls._serialize_profile(profile),
+            'profile': cls._serialize_employee_profile(employee),
         }
+
+    @classmethod
+    def _get_active_or_initial_lifecycle(cls) -> EmployeeLifecycleStatus:
+        active = EmployeeLifecycleStatus.objects.filter(key='active', is_active=True).first()
+        if active is not None:
+            return active
+        return EmployeeLifecycleEngine.get_initial_status()
 
     @classmethod
     def _create_headquarters_branch(cls, *, organization: Organization) -> OrganizationBranch:
@@ -151,34 +185,6 @@ class OrganizationSetupService:
             is_headquarters=True,
             status=OrganizationBranch.Status.ACTIVE,
         )
-
-    @classmethod
-    def _ensure_admin_profile(cls, *, user: User, phone: str) -> UserProfile:
-        display_name = user.full_name or user.email.split('@')[0]
-        profile, created = UserProfile.objects.get_or_create(
-            user=user,
-            defaults={
-                'display_name': display_name,
-                'mobile_number': phone,
-                'is_profile_completed': False,
-                'completed_status': '',
-                'created_by': user,
-                'updated_by': user,
-            },
-        )
-        if not created:
-            updates: list[str] = []
-            if not profile.display_name:
-                profile.display_name = display_name
-                updates.append('display_name')
-            if phone and not profile.mobile_number:
-                profile.mobile_number = phone
-                updates.append('mobile_number')
-            if updates:
-                profile.updated_by = user
-                updates.append('updated_by')
-                profile.save(update_fields=[*updates, 'updated_at'])
-        return profile
 
     @classmethod
     def _ensure_admin_access_type(cls, *, industry: IndustryType) -> AccessType:
@@ -214,8 +220,7 @@ class OrganizationSetupService:
 
     @classmethod
     def _generate_employee_code(cls, organization: Organization) -> str:
-        prefix = re.sub(r'[^A-Z0-9]', '', organization.organization_code.upper())[:6] or 'EMP'
-        return f'{prefix}-001'
+        return EmployeeLifecycleEngine._generate_employee_code(organization)
 
     @classmethod
     def _serialize_organization(cls, organization: Organization) -> dict:
@@ -261,12 +266,12 @@ class OrganizationSetupService:
         }
 
     @classmethod
-    def _serialize_profile(cls, profile: UserProfile) -> dict:
+    def _serialize_employee_profile(cls, employee: Employee) -> dict:
         return {
-            'id': str(profile.id),
-            'user_id': str(profile.user_id),
-            'display_name': profile.display_name,
-            'profile_photo': profile.profile_photo,
-            'mobile_number': profile.mobile_number,
-            'is_profile_completed': profile.is_profile_completed,
+            'id': str(employee.id),
+            'user_id': str(employee.user_id) if employee.user_id else None,
+            'display_name': employee.display_name,
+            'profile_photo': WorkspaceService.profile_photo_url(employee),
+            'mobile_number': employee.mobile_number,
+            'is_profile_completed': employee.is_profile_completed,
         }

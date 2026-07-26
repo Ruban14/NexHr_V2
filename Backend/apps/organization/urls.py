@@ -14,6 +14,10 @@ from apps.organization.views import (
     DesignationListCreateView,
     DesignationMoveView,
     DesignationRepositionView,
+    EmployeeDetailView,
+    EmployeeLifecycleConfigView,
+    EmployeeLifecycleTransitionView,
+    EmployeeListCreateView,
     EmployeeTypeDetailView,
     EmployeeTypeListCreateView,
     HolidayCalendarDetailView,
@@ -94,4 +98,12 @@ urlpatterns = [
         name='organization-holidays',
     ),
     path('holidays/<uuid:holiday_id>', HolidayDetailView.as_view(), name='organization-holiday-detail'),
+    path('lifecycle', EmployeeLifecycleConfigView.as_view(), name='organization-lifecycle-config'),
+    path('employees', EmployeeListCreateView.as_view(), name='organization-employees'),
+    path('employees/<uuid:employee_id>', EmployeeDetailView.as_view(), name='organization-employee-detail'),
+    path(
+        'employees/<uuid:employee_id>/transition',
+        EmployeeLifecycleTransitionView.as_view(),
+        name='organization-employee-transition',
+    ),
 ]

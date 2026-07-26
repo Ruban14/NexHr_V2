@@ -150,6 +150,8 @@ REST_FRAMEWORK = {
     ),
     'DEFAULT_PARSER_CLASSES': (
         'rest_framework.parsers.JSONParser',
+        'rest_framework.parsers.MultiPartParser',
+        'rest_framework.parsers.FormParser',
     ),
     'DEFAULT_THROTTLE_CLASSES': (
         'rest_framework.throttling.AnonRateThrottle',
@@ -183,6 +185,7 @@ AUTH_EMAIL_VERIFICATION_HOURS = int(os.getenv('AUTH_EMAIL_VERIFICATION_HOURS', '
 AUTH_PASSWORD_RESET_HOURS = int(os.getenv('AUTH_PASSWORD_RESET_HOURS', '1'))
 
 FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:4200')
+EMPLOYEE_DEFAULT_PASSWORD = os.getenv('EMPLOYEE_DEFAULT_PASSWORD', 'Welcome123!')
 DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'noreply@nexhr.local')
 EMAIL_BACKEND = os.getenv(
     'EMAIL_BACKEND',
@@ -204,3 +207,14 @@ CORS_ALLOWED_ORIGINS = env_list(
 CORS_ALLOW_CREDENTIALS = env_bool('CORS_ALLOW_CREDENTIALS', 'True')
 if default_headers:
     CORS_ALLOW_HEADERS = (*default_headers, 'x-branch-id')
+
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+PUBLIC_API_ORIGIN = os.getenv('PUBLIC_API_ORIGIN', 'http://localhost:8000')
+PROFILE_PHOTO_MAX_BYTES = int(os.getenv('PROFILE_PHOTO_MAX_BYTES', str(2 * 1024 * 1024)))
+PROFILE_PHOTO_CONTENT_TYPES = (
+    'image/jpeg',
+    'image/png',
+    'image/webp',
+    'image/gif',
+)

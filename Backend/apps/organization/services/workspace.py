@@ -9,7 +9,7 @@ from django.db import transaction
 
 from apps.authentication.models import User
 from apps.core.exceptions import NotFoundServiceError, PermissionDeniedServiceError, ValidationServiceError
-from apps.organization.models import IndustryType, Organization, OrganizationMembership, UserProfile
+from apps.organization.models import Employee, IndustryType, Organization, OrganizationMembership
 
 
 class WorkspaceService:
@@ -63,6 +63,45 @@ class WorkspaceService:
                 code='membership_not_found',
             )
         return membership
+
+    @classmethod
+    def get_employee_for_user(
+        cls,
+        user: User,
+        *,
+        branch_id: str | UUID | None = None,
+    ) -> Employee:
+        membership = None
+        try:
+            membership = cls.get_membership(user, branch_id=branch_id)
+        except NotFoundServiceError:
+            membership = (
+                OrganizationMembership.objects.select_related('branch')
+                .filter(user=user, status=OrganizationMembership.Status.ACTIVE)
+                .order_by('-created_at')
+                .first()
+            )
+
+        qs = Employee.objects.select_related(
+            'organization',
+            'branch',
+            'access_type',
+            'lifecycle_status',
+        ).prefetch_related(
+            'bank_details',
+            'education_details',
+            'job_experiences',
+        ).filter(user=user)
+
+        if membership is not None:
+            employee = qs.filter(organization_id=membership.branch.organization_id).first()
+            if employee is not None:
+                return employee
+
+        employee = qs.order_by('-created_at').first()
+        if employee is None:
+            raise NotFoundServiceError('Employee profile not found.', code='profile_not_found')
+        return employee
 
     @classmethod
     def get_organization(cls, user: User, *, branch_id: str | UUID | None = None) -> dict:
@@ -132,9 +171,7 @@ class WorkspaceService:
 
     @classmethod
     def get_profile(cls, user: User, *, branch_id: str | UUID | None = None) -> dict:
-        profile = UserProfile.objects.filter(user=user).first()
-        if profile is None:
-            raise NotFoundServiceError('User profile not found.', code='profile_not_found')
+        employee = cls.get_employee_for_user(user, branch_id=branch_id)
         membership = None
         try:
             membership = cls.get_membership(user, branch_id=branch_id)
@@ -149,7 +186,7 @@ class WorkspaceService:
                 .order_by('-created_at')
                 .first()
             )
-        return cls.serialize_profile(user=user, profile=profile, membership=membership)
+        return cls.serialize_profile(user=user, employee=employee, membership=membership)
 
     @classmethod
     @transaction.atomic
@@ -160,25 +197,27 @@ class WorkspaceService:
         payload: dict,
         branch_id: str | UUID | None = None,
     ) -> dict:
-        profile = UserProfile.objects.filter(user=user).first()
-        if profile is None:
-            raise NotFoundServiceError('User profile not found.', code='profile_not_found')
+        employee = cls.get_employee_for_user(user, branch_id=branch_id)
 
         user_updates: list[str] = []
         if 'first_name' in payload:
             user.first_name = payload['first_name'] or ''
+            employee.first_name = user.first_name
             user_updates.append('first_name')
         if 'last_name' in payload:
             user.last_name = payload['last_name'] or ''
+            employee.last_name = user.last_name
             user_updates.append('last_name')
         if user_updates:
             user.save(update_fields=[*user_updates, 'updated_at'])
 
         profile_fields = {
             'display_name',
-            'profile_photo',
             'mobile_number',
             'alternate_mobile',
+            'emergency_contact_name',
+            'emergency_contact_relationship',
+            'emergency_contact_phone',
             'gender',
             'blood_group',
             'country',
@@ -191,14 +230,23 @@ class WorkspaceService:
         for field in profile_fields:
             if field in payload:
                 value = payload[field]
-                setattr(profile, field, value if value is not None else '')
+                setattr(employee, field, value if value is not None else '')
+
+        if payload.get('clear_profile_photo'):
+            if employee.profile_photo:
+                employee.profile_photo.delete(save=False)
+            employee.profile_photo = ''
+        elif payload.get('profile_photo') is not None:
+            if employee.profile_photo:
+                employee.profile_photo.delete(save=False)
+            employee.profile_photo = payload['profile_photo']
 
         if 'date_of_birth' in payload:
             dob = payload['date_of_birth']
             if dob in (None, ''):
-                profile.date_of_birth = None
+                employee.date_of_birth = None
             elif isinstance(dob, date):
-                profile.date_of_birth = dob
+                employee.date_of_birth = dob
             else:
                 raise ValidationServiceError(
                     'Enter a valid date of birth.',
@@ -209,9 +257,9 @@ class WorkspaceService:
         if 'languages_known' in payload:
             languages = payload['languages_known']
             if languages is None:
-                profile.languages_known = []
+                employee.languages_known = []
             elif isinstance(languages, list):
-                profile.languages_known = [str(item).strip() for item in languages if str(item).strip()]
+                employee.languages_known = [str(item).strip() for item in languages if str(item).strip()]
             else:
                 raise ValidationServiceError(
                     'languages_known must be a list.',
@@ -219,11 +267,32 @@ class WorkspaceService:
                     details={'languages_known': ['Provide a list of languages.']},
                 )
 
-        has_core = bool(profile.display_name and profile.mobile_number)
-        profile.is_profile_completed = has_core
-        profile.completed_status = 'done' if has_core else ''
-        profile.updated_by = user
-        profile.save()
+        has_core = bool(employee.display_name and employee.mobile_number)
+        employee.is_profile_completed = has_core
+        employee.completed_status = 'done' if has_core else ''
+        employee.updated_by = user
+        employee.save()
+
+        from apps.organization.services.lifecycle import EmployeeService
+
+        if 'bank_details' in payload and payload['bank_details'] is not None:
+            EmployeeService.replace_bank_details(
+                employee=employee,
+                rows=payload['bank_details'],
+                user=user,
+            )
+        if 'education_details' in payload and payload['education_details'] is not None:
+            EmployeeService.replace_education_details(
+                employee=employee,
+                rows=payload['education_details'],
+                user=user,
+            )
+        if 'job_experiences' in payload and payload['job_experiences'] is not None:
+            EmployeeService.replace_job_experiences(
+                employee=employee,
+                rows=payload['job_experiences'],
+                user=user,
+            )
 
         membership = None
         try:
@@ -239,7 +308,7 @@ class WorkspaceService:
                 .order_by('-created_at')
                 .first()
             )
-        return cls.serialize_profile(user=user, profile=profile, membership=membership)
+        return cls.serialize_profile(user=user, employee=employee, membership=membership)
 
     @classmethod
     def serialize_organization(cls, organization: Organization, *, can_edit: bool) -> dict:
@@ -304,45 +373,103 @@ class WorkspaceService:
         }
 
     @classmethod
+    def profile_photo_url(cls, employee: Employee) -> str:
+        photo = employee.profile_photo
+        if not photo:
+            return ''
+        name = getattr(photo, 'name', '') or str(photo)
+        if not name:
+            return ''
+        if name.startswith('http://') or name.startswith('https://'):
+            return name
+        from django.conf import settings
+
+        media_url = settings.MEDIA_URL if settings.MEDIA_URL.endswith('/') else f'{settings.MEDIA_URL}/'
+        origin = settings.PUBLIC_API_ORIGIN.rstrip('/')
+        return f'{origin}{media_url}{name.lstrip("/")}'
+
+    @classmethod
     def serialize_profile(
         cls,
         *,
         user: User,
-        profile: UserProfile,
+        employee: Employee,
         membership: OrganizationMembership | None,
     ) -> dict:
         return {
-            'id': str(profile.id),
+            'id': str(employee.id),
             'user_id': str(user.id),
-            'email': user.email,
-            'first_name': user.first_name,
-            'last_name': user.last_name,
+            'email': user.email or employee.email,
+            'first_name': employee.first_name or user.first_name,
+            'last_name': employee.last_name or user.last_name,
             'full_name': user.full_name,
-            'display_name': profile.display_name,
-            'profile_photo': profile.profile_photo,
-            'mobile_number': profile.mobile_number,
-            'alternate_mobile': profile.alternate_mobile,
-            'date_of_birth': profile.date_of_birth.isoformat() if profile.date_of_birth else None,
-            'gender': profile.gender,
-            'blood_group': profile.blood_group,
-            'country': profile.country,
-            'state': profile.state,
-            'city': profile.city,
-            'address_line1': profile.address_line1,
-            'postal_code': profile.postal_code,
-            'mother_language': profile.mother_language,
-            'languages_known': profile.languages_known or [],
-            'is_profile_completed': profile.is_profile_completed,
-            'employee_code': membership.employee_code if membership else None,
-            'organization_id': (
-                str(membership.branch.organization_id) if membership else None
+            'display_name': employee.display_name,
+            'profile_photo': cls.profile_photo_url(employee),
+            'mobile_number': employee.mobile_number,
+            'alternate_mobile': employee.alternate_mobile,
+            'emergency_contact_name': employee.emergency_contact_name,
+            'emergency_contact_relationship': employee.emergency_contact_relationship,
+            'emergency_contact_phone': employee.emergency_contact_phone,
+            'bank_details': [
+                {
+                    'id': str(row.id),
+                    'account_holder_name': row.account_holder_name,
+                    'bank_name': row.bank_name,
+                    'account_number': row.account_number,
+                    'ifsc_code': row.ifsc_code,
+                    'is_primary': row.is_primary,
+                }
+                for row in employee.bank_details.all()
+            ],
+            'education_details': [
+                {
+                    'id': str(row.id),
+                    'degree': row.degree,
+                    'institution': row.institution,
+                    'field_of_study': row.field_of_study,
+                    'year_of_passing': row.year_of_passing,
+                    'grade': row.grade,
+                }
+                for row in employee.education_details.all()
+            ],
+            'job_experiences': [
+                {
+                    'id': str(row.id),
+                    'company_name': row.company_name,
+                    'job_title': row.job_title,
+                    'start_date': row.start_date.isoformat() if row.start_date else None,
+                    'end_date': row.end_date.isoformat() if row.end_date else None,
+                    'is_current': row.is_current,
+                    'location': row.location,
+                    'description': row.description,
+                }
+                for row in employee.job_experiences.all()
+            ],
+            'date_of_birth': employee.date_of_birth.isoformat() if employee.date_of_birth else None,
+            'gender': employee.gender,
+            'blood_group': employee.blood_group,
+            'country': employee.country,
+            'state': employee.state,
+            'city': employee.city,
+            'address_line1': employee.address_line1,
+            'postal_code': employee.postal_code,
+            'mother_language': employee.mother_language,
+            'languages_known': employee.languages_known or [],
+            'is_profile_completed': employee.is_profile_completed,
+            'employee_code': employee.employee_code or (membership.employee_code if membership else None),
+            'organization_id': str(employee.organization_id),
+            'organization_name': employee.organization.display_name,
+            'branch_id': str(employee.branch_id) if employee.branch_id else (
+                str(membership.branch_id) if membership else None
             ),
-            'organization_name': (
-                membership.branch.organization.display_name if membership else None
+            'branch_name': (
+                employee.branch.branch_name if employee.branch_id else (
+                    membership.branch.branch_name if membership else None
+                )
             ),
-            'branch_id': str(membership.branch_id) if membership else None,
-            'branch_name': membership.branch.branch_name if membership else None,
             'access_type_name': (
-                membership.access_type.name if membership and membership.access_type else None
+                employee.access_type.name if employee.access_type else (
+                    membership.access_type.name if membership and membership.access_type else None
+                )
             ),
         }

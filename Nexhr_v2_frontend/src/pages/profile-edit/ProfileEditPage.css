@@ -1,0 +1,253 @@
+.profile-edit {
+  min-width: 0;
+  animation: fade-rise 0.45s var(--ease-out) both;
+}
+
+.profile-edit__lead {
+  margin: 0 0 1.15rem;
+  max-width: 40rem;
+  color: var(--color-text-secondary);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.profile-edit__form {
+  display: grid;
+  gap: 1rem;
+}
+
+.profile-edit__hero {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 1.25rem;
+  align-items: center;
+  padding: 1.35rem 1.4rem;
+  border-radius: 22px;
+  border: 1px solid var(--color-border-subtle);
+  background:
+    radial-gradient(560px 200px at 0% 0%, color-mix(in srgb, var(--theme-default) 18%, transparent), transparent 60%),
+    radial-gradient(420px 180px at 100% 0%, color-mix(in srgb, var(--theme-secondary) 12%, transparent), transparent 55%),
+    var(--color-surface-card);
+  box-shadow: var(--shadow-sm);
+}
+
+.profile-edit__avatar-wrap {
+  flex-shrink: 0;
+}
+
+.profile-edit__avatar {
+  width: 108px;
+  height: 108px;
+  border-radius: 999px;
+  object-fit: cover;
+  display: grid;
+  place-items: center;
+  box-shadow:
+    var(--shadow-brand),
+    0 0 0 3px color-mix(in srgb, var(--theme-default) 28%, transparent);
+}
+
+.profile-edit__avatar--fallback {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--color-on-brand);
+  background: linear-gradient(145deg, var(--color-brand-400), var(--color-brand-700));
+}
+
+.profile-edit__eyebrow {
+  margin: 0 0 0.25rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--theme-default);
+}
+
+.profile-edit__hero-copy h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.45rem;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+
+.profile-edit__hero-copy > p {
+  margin: 0.35rem 0 0;
+  color: var(--color-text-secondary);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.profile-edit__photo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-top: 0.9rem;
+}
+
+.profile-edit__file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.profile-edit__card {
+  padding: 1.2rem 1.25rem 1.3rem;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 18px;
+  background: var(--color-surface-card);
+  box-shadow: var(--shadow-sm);
+}
+
+.profile-edit__card-head {
+  margin-bottom: 1rem;
+  padding-bottom: 0.8rem;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.profile-edit__card-head h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.profile-edit__card-head p {
+  margin: 0.3rem 0 0;
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+}
+
+.profile-edit__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.95rem 1rem;
+}
+
+.profile-edit__grid--3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.profile-edit__span-2 {
+  grid-column: span 2;
+}
+
+.profile-edit .field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.profile-edit .field span {
+  font-size: 0.8125rem;
+  font-weight: 550;
+  color: var(--color-text-secondary);
+}
+
+.profile-edit .field input,
+.profile-edit .field select,
+.profile-edit .field textarea {
+  min-height: 44px;
+  padding: 0 0.9rem;
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-input);
+  color: var(--color-text-primary);
+  transition:
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+.profile-edit .field textarea {
+  min-height: 88px;
+  padding: 0.75rem 0.9rem;
+  resize: vertical;
+  font: inherit;
+}
+
+.profile-edit .field input:focus,
+.profile-edit .field select:focus,
+.profile-edit .field textarea:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--theme-default) 55%, transparent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--theme-default) 16%, transparent);
+}
+
+.profile-edit .field input:disabled {
+  opacity: 0.7;
+  background: var(--color-surface-muted);
+}
+
+.profile-edit .field-error {
+  font-style: normal;
+  font-size: 0.78rem;
+  color: var(--color-danger-600);
+}
+
+.profile-edit__check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-height: 44px;
+  font-size: 0.9rem;
+  font-weight: 550;
+  color: var(--color-text-secondary);
+}
+
+.profile-edit__repeat-list {
+  display: grid;
+  gap: 0.85rem;
+  margin-bottom: 0.85rem;
+}
+
+.profile-edit__repeat-row {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.95rem 1rem;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 16px;
+  background: var(--color-surface-muted);
+}
+
+.profile-edit__repeat-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.profile-edit__empty {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.86rem;
+}
+
+.profile-edit__actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 0.25rem;
+}
+
+@media (max-width: 900px) {
+  .profile-edit__grid--3 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .profile-edit__hero {
+    grid-template-columns: 1fr;
+    justify-items: start;
+  }
+
+  .profile-edit__grid,
+  .profile-edit__grid--3 {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-edit__span-2 {
+    grid-column: auto;
+  }
+}

@@ -174,8 +174,8 @@
   transform: translateX(-50%);
   padding: 0.35rem 0.55rem;
   border-radius: 6px;
-  background: #171829;
-  color: #fff;
+  background: var(--color-text-primary);
+  color: var(--color-surface-elevated);
   font-size: 0.72rem;
   font-weight: 500;
   white-space: nowrap;
@@ -268,8 +268,8 @@
   transform: translateX(-50%);
   padding: 0.35rem 0.55rem;
   border-radius: 6px;
-  background: #171829;
-  color: #fff;
+  background: var(--color-text-primary);
+  color: var(--color-surface-elevated);
   font-size: 0.72rem;
   font-weight: 500;
   white-space: nowrap;
@@ -435,15 +435,13 @@
   }
 }
 
-@media (prefers-color-scheme: dark) {
-  .teams-tree {
-    --tree-line: rgba(154, 160, 181, 0.35);
-    background:
-      radial-gradient(circle at top left, rgba(92, 97, 242, 0.12), transparent 42%),
-      var(--color-surface-card);
-  }
+[data-theme='dark'] .teams-tree {
+  --tree-line: rgba(154, 160, 181, 0.35);
+  background:
+    radial-gradient(circle at top left, color-mix(in srgb, var(--theme-default) 12%, transparent), transparent 42%),
+    var(--color-surface-card);
+}
 
-  .teams-tree__header {
-    background: rgba(255, 255, 255, 0.02);
-  }
+[data-theme='dark'] .teams-tree__header {
+  background: color-mix(in srgb, var(--color-surface-elevated) 70%, transparent);
 }

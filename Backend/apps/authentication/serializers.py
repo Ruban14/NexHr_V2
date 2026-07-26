@@ -58,6 +58,13 @@ class ResendVerificationSerializer(serializers.Serializer):
     email = serializers.EmailField(max_length=254)
 
 
+class ChangePasswordSerializer(serializers.Serializer):
+    """Validate authenticated password change input."""
+
+    current_password = serializers.CharField(write_only=True, trim_whitespace=False)
+    password = serializers.CharField(write_only=True, min_length=9, trim_whitespace=False)
+
+
 class UserProfileSerializer(serializers.Serializer):
     """Read-only user profile representation."""
 
@@ -67,6 +74,7 @@ class UserProfileSerializer(serializers.Serializer):
     last_name = serializers.CharField(read_only=True)
     full_name = serializers.CharField(read_only=True)
     is_email_verified = serializers.BooleanField(read_only=True)
+    must_change_password = serializers.BooleanField(read_only=True)
     is_active = serializers.BooleanField(read_only=True)
     date_joined = serializers.DateTimeField(read_only=True)
     last_login = serializers.DateTimeField(read_only=True, allow_null=True)

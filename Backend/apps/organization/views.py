@@ -16,6 +16,9 @@ from apps.organization.serializers import (
     DesignationMoveSerializer,
     DesignationRepositionSerializer,
     DesignationUpdateSerializer,
+    EmployeeCreateSerializer,
+    EmployeeLifecycleTransitionSerializer,
+    EmployeeUpdateSerializer,
     HolidayCalendarCreateSerializer,
     HolidayCalendarUpdateSerializer,
     HolidayCreateSerializer,
@@ -31,6 +34,7 @@ from apps.organization.serializers import (
     WorkWeekCreateSerializer,
     WorkWeekUpdateSerializer,
 )
+from apps.organization.services.lifecycle import EmployeeService
 from apps.organization.services.masters import MasterService
 from apps.organization.services.setup import OrganizationSetupService
 from apps.organization.services.workspace import WorkspaceService
@@ -106,7 +110,11 @@ class CurrentUserProfileView(APIView):
         return success_response(data=data, message='Profile retrieved.')
 
     def patch(self, request: Request):
-        serializer = UserProfileUpdateSerializer(data=request.data, partial=True)
+        serializer = UserProfileUpdateSerializer(
+            data=request.data,
+            partial=True,
+            context={'request': request},
+        )
         serializer.is_valid(raise_exception=True)
         data = WorkspaceService.update_profile(
             user=request.user,
@@ -599,3 +607,78 @@ class HolidayDetailView(APIView):
             holiday_id=holiday_id,
         )
         return success_response(data=None, message='Holiday deleted.')
+
+
+class EmployeeLifecycleConfigView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request: Request):
+        data = EmployeeService.list_lifecycle_config(
+            user=request.user,
+            branch_id=get_branch_id(request),
+        )
+        return success_response(data=data, message='Lifecycle configuration retrieved.')
+
+
+class EmployeeListCreateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request: Request):
+        data = EmployeeService.list_employees(
+            user=request.user,
+            branch_id=get_branch_id(request),
+            search=request.query_params.get('search', ''),
+            page=int(request.query_params.get('page', 1)),
+            page_size=int(request.query_params.get('page_size', 20)),
+            lifecycle_status_id=request.query_params.get('lifecycle_status_id') or None,
+        )
+        return success_response(data=data, message='Employees retrieved.')
+
+    def post(self, request: Request):
+        serializer = EmployeeCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = EmployeeService.create_employee(
+            user=request.user,
+            branch_id=get_branch_id(request),
+            payload=serializer.validated_data,
+        )
+        return success_response(data=data, message='Employee created.', status_code=status.HTTP_201_CREATED)
+
+
+class EmployeeDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request: Request, employee_id):
+        data = EmployeeService.get_employee(
+            user=request.user,
+            branch_id=get_branch_id(request),
+            employee_id=employee_id,
+        )
+        return success_response(data=data, message='Employee retrieved.')
+
+    def patch(self, request: Request, employee_id):
+        serializer = EmployeeUpdateSerializer(data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        data = EmployeeService.update_employee(
+            user=request.user,
+            branch_id=get_branch_id(request),
+            employee_id=employee_id,
+            payload=serializer.validated_data,
+        )
+        return success_response(data=data, message='Employee updated.')
+
+
+class EmployeeLifecycleTransitionView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request: Request, employee_id):
+        serializer = EmployeeLifecycleTransitionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = EmployeeService.transition_employee(
+            user=request.user,
+            branch_id=get_branch_id(request),
+            employee_id=employee_id,
+            to_status_id=serializer.validated_data['to_status_id'],
+            remarks=serializer.validated_data.get('remarks', ''),
+        )
+        return success_response(data=data, message='Lifecycle status updated.')

@@ -30,6 +30,7 @@ type AuthContextValue = {
   logout: () => Promise<void>;
   forgotPassword: (email: string) => Promise<void>;
   resetPassword: (token: string, password: string) => Promise<void>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<User>;
   verifyEmail: (token: string) => Promise<void>;
   resendVerification: (email: string) => Promise<void>;
   getAccessToken: () => string | null;
@@ -55,20 +56,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(response.user);
   }, []);
 
-  const refreshSession = useCallback(async (): Promise<boolean> => {
-    const refresh = tokenStorage.getRefreshToken();
-    if (!refresh) return false;
-    try {
-      const tokens = await authApi.refresh(refresh);
-      tokenStorage.setAccessToken(tokens.access);
-      tokenStorage.setRefreshToken(tokens.refresh);
-      return true;
-    } catch {
-      clearSession();
-      return false;
-    }
-  }, [clearSession]);
-
   useEffect(() => {
     let cancelled = false;
 
@@ -84,15 +71,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const me = await authApi.me(access ?? '');
         if (!cancelled) setUser(me);
       } catch {
-        const refreshed = await refreshSession();
-        if (refreshed) {
-          try {
-            const me = await authApi.me(tokenStorage.getAccessToken() ?? '');
-            if (!cancelled) setUser(me);
-          } catch {
-            clearSession();
-          }
-        }
+        if (!cancelled) clearSession();
       } finally {
         if (!cancelled) setBootstrapping(false);
       }
@@ -102,7 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [clearSession, refreshSession]);
+  }, [clearSession]);
 
   const login = useCallback(
     async (email: string, password: string, rememberMe: boolean) => {
@@ -172,6 +151,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const changePassword = useCallback(async (currentPassword: string, newPassword: string) => {
+    const access = tokenStorage.getAccessToken();
+    if (!access) {
+      throw new Error('Not authenticated.');
+    }
+    setLoading(true);
+    try {
+      const updated = await authApi.changePassword(access, {
+        current_password: currentPassword,
+        password: newPassword,
+      });
+      setUser(updated);
+      return updated;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   const verifyEmail = useCallback(async (token: string) => {
     setLoading(true);
     try {
@@ -217,6 +214,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       logout,
       forgotPassword,
       resetPassword,
+      changePassword,
       verifyEmail,
       resendVerification,
       getAccessToken: () => tokenStorage.getAccessToken(),
@@ -233,6 +231,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       logout,
       forgotPassword,
       resetPassword,
+      changePassword,
       verifyEmail,
       resendVerification,
       establishSession,

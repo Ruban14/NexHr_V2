@@ -8,6 +8,7 @@ from rest_framework.request import Request
 from rest_framework.views import APIView
 
 from apps.authentication.serializers import (
+    ChangePasswordSerializer,
     ForgotPasswordSerializer,
     LoginSerializer,
     LogoutSerializer,
@@ -121,6 +122,26 @@ class ResetPasswordView(APIView):
             new_password=serializer.validated_data['password'],
         )
         return success_response(message='Password reset successful.')
+
+
+class ChangePasswordView(APIView):
+    """Change password for the authenticated user."""
+
+    permission_classes = [IsAuthenticated]
+    throttle_classes = [AuthUserRateThrottle]
+
+    def post(self, request: Request):
+        serializer = ChangePasswordSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = PasswordService.change_password(
+            user=request.user,
+            current_password=serializer.validated_data['current_password'],
+            new_password=serializer.validated_data['password'],
+        )
+        return success_response(
+            data=AuthService.get_profile(user),
+            message='Password updated successfully.',
+        )
 
 
 class VerifyEmailView(APIView):

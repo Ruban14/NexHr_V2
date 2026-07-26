@@ -1,4 +1,5 @@
 import { useEffect, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import './Modal.css';
 
 type ModalProps = {
@@ -8,9 +9,18 @@ type ModalProps = {
   children: ReactNode;
   footer?: ReactNode;
   size?: 'md' | 'lg';
+  bodyClassName?: string;
 };
 
-export function Modal({ open, title, onClose, children, footer, size = 'md' }: ModalProps) {
+export function Modal({
+  open,
+  title,
+  onClose,
+  children,
+  footer,
+  size = 'md',
+  bodyClassName,
+}: ModalProps) {
   useEffect(() => {
     if (!open) return;
     function onKeyDown(event: KeyboardEvent) {
@@ -27,7 +37,7 @@ export function Modal({ open, title, onClose, children, footer, size = 'md' }: M
 
   if (!open) return null;
 
-  return (
+  return createPortal(
     <div className="modal-root" role="presentation">
       <button type="button" className="modal-backdrop" aria-label="Close dialog" onClick={onClose} />
       <div
@@ -42,9 +52,10 @@ export function Modal({ open, title, onClose, children, footer, size = 'md' }: M
             ×
           </button>
         </header>
-        <div className="modal-panel__body">{children}</div>
+        <div className={`modal-panel__body${bodyClassName ? ` ${bodyClassName}` : ''}`}>{children}</div>
         {footer ? <footer className="modal-panel__footer">{footer}</footer> : null}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

@@ -18,7 +18,12 @@
   display: block;
   height: 12px;
   border-radius: 999px;
-  background: linear-gradient(90deg, #eceff5 0%, #f7f8fb 50%, #eceff5 100%);
+  background: linear-gradient(
+    90deg,
+    var(--color-surface-muted) 0%,
+    var(--color-surface-hover) 50%,
+    var(--color-surface-muted) 100%
+  );
   background-size: 200% 100%;
   animation: shimmer 1.2s ease infinite;
 }
@@ -38,12 +43,5 @@
   }
   100% {
     background-position: -100% 0;
-  }
-}
-
-@media (prefers-color-scheme: dark) {
-  .loading-skeleton__bar {
-    background: linear-gradient(90deg, #2a2b3d 0%, #34354a 50%, #2a2b3d 100%);
-    background-size: 200% 100%;
   }
 }

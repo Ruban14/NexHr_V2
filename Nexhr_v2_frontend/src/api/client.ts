@@ -1,3 +1,5 @@
+import { tokenStorage } from '../auth/tokenStorage';
+
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000/api';
 
 export type ApiResponse<T> = {
@@ -24,10 +26,14 @@ type RequestOptions = {
   body?: unknown;
   token?: string | null;
   skipAuth?: boolean;
+  /** Prevent recursive refresh attempts on the same request. */
+  skipRefresh?: boolean;
   branchId?: string | null;
 };
 
 let activeBranchId: string | null = null;
+/** Single-flight refresh so parallel 401s share one rotate call. */
+let refreshInFlight: Promise<string | null> | null = null;
 
 export function setActiveBranchId(branchId: string | null) {
   activeBranchId = branchId;
@@ -37,10 +43,40 @@ export function getActiveBranchId(): string | null {
   return activeBranchId;
 }
 
+async function refreshAccessToken(): Promise<string | null> {
+  if (refreshInFlight) return refreshInFlight;
+
+  refreshInFlight = (async () => {
+    const refresh = tokenStorage.getRefreshToken();
+    if (!refresh) return null;
+
+    try {
+      const tokens = await apiRequest<{ access: string; refresh: string }>('/auth/refresh', {
+        method: 'POST',
+        body: { refresh },
+        skipAuth: true,
+        skipRefresh: true,
+      });
+      tokenStorage.setAccessToken(tokens.access);
+      tokenStorage.setRefreshToken(tokens.refresh);
+      return tokens.access;
+    } catch {
+      tokenStorage.clear();
+      return null;
+    } finally {
+      refreshInFlight = null;
+    }
+  })();
+
+  return refreshInFlight;
+}
+
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  };
+  const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
+  const headers: Record<string, string> = {};
+  if (!isFormData) {
+    headers['Content-Type'] = 'application/json';
+  }
 
   if (!options.skipAuth && options.token) {
     headers.Authorization = `Bearer ${options.token}`;
@@ -54,7 +90,12 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   const response = await fetch(`${API_BASE_URL}${path}`, {
     method: options.method ?? (options.body ? 'POST' : 'GET'),
     headers,
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
+    body:
+      options.body === undefined
+        ? undefined
+        : isFormData
+          ? (options.body as FormData)
+          : JSON.stringify(options.body),
   });
 
   let payload: ApiResponse<T> | null = null;
@@ -65,6 +106,23 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   }
 
   if (!response.ok || !payload.success) {
+    const canRefresh =
+      response.status === 401 &&
+      !options.skipAuth &&
+      !options.skipRefresh &&
+      Boolean(tokenStorage.getRefreshToken());
+
+    if (canRefresh) {
+      const nextAccess = await refreshAccessToken();
+      if (nextAccess) {
+        return apiRequest<T>(path, {
+          ...options,
+          token: nextAccess,
+          skipRefresh: true,
+        });
+      }
+    }
+
     throw new ApiError(
       payload.message || 'Request failed.',
       response.status,
@@ -95,13 +153,31 @@ export function extractFieldErrors(error: unknown): Record<string, string> {
   }
 
   const result: Record<string, string> = {};
-  for (const [key, value] of Object.entries(error.errors)) {
+
+  const flatten = (value: unknown, prefix = ''): void => {
+    if (value == null) return;
     if (typeof value === 'string') {
-      result[key] = value;
-    } else if (Array.isArray(value) && value.length > 0) {
-      result[key] = String(value[0]);
+      if (prefix) result[prefix] = value;
+      return;
     }
-  }
+    if (Array.isArray(value)) {
+      if (value.length === 0) return;
+      if (typeof value[0] === 'string' || typeof value[0] === 'number') {
+        if (prefix) result[prefix] = String(value[0]);
+        return;
+      }
+      value.forEach((item, index) => flatten(item, prefix ? `${prefix}.${index}` : String(index)));
+      return;
+    }
+    if (typeof value === 'object') {
+      for (const [key, nested] of Object.entries(value as Record<string, unknown>)) {
+        if (key === 'code') continue;
+        flatten(nested, prefix ? `${prefix}.${key}` : key);
+      }
+    }
+  };
+
+  flatten(error.errors);
   return result;
 }
 

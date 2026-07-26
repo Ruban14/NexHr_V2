@@ -71,6 +71,7 @@ class AuthService:
             'last_name': user.last_name,
             'full_name': user.full_name,
             'is_email_verified': user.is_email_verified,
+            'must_change_password': user.must_change_password,
             'is_active': user.is_active,
             'date_joined': serialize_datetime(user.created_at),
             'last_login': serialize_datetime(user.last_login),
@@ -174,6 +175,10 @@ class AuthService:
         )
         user.last_login = timezone.now()
         user.save(update_fields=['last_login'])
+        if user.must_change_password:
+            from apps.organization.services.lifecycle import EmployeeService
+
+            EmployeeService.accept_invite_on_login(user=user)
         return AuthResult(user=user, tokens=tokens)
 
     @classmethod

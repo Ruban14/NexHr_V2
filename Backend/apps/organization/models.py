@@ -128,7 +128,7 @@ class Designation(UUIDModel, TimeStampedModel, AuditedModel):
     )
     parent = models.ForeignKey(
         'self',
-        on_delete=models.SET_NULL,
+        on_delete=models.CASCADE,
         null=True,
         blank=True,
         related_name='children',
@@ -181,60 +181,8 @@ class AccessType(UUIDModel, TimeStampedModel, AuditedModel):
     def __str__(self) -> str:
         return self.name
 
-class UserProfile(UUIDModel, TimeStampedModel, AuditedModel):
-    """Extended profile details for an authenticated user."""
-
-    class Gender(models.TextChoices):
-        MALE = 'male', 'Male'
-        FEMALE = 'female', 'Female'
-        OTHER = 'other', 'Other'
-        PREFER_NOT_TO_SAY = 'prefer_not_to_say', 'Prefer not to say'
-
-    class BloodGroup(models.TextChoices):
-        A_POSITIVE = 'A+', 'A+'
-        A_NEGATIVE = 'A-', 'A-'
-        B_POSITIVE = 'B+', 'B+'
-        B_NEGATIVE = 'B-', 'B-'
-        AB_POSITIVE = 'AB+', 'AB+'
-        AB_NEGATIVE = 'AB-', 'AB-'
-        O_POSITIVE = 'O+', 'O+'
-        O_NEGATIVE = 'O-', 'O-'
-        UNKNOWN = 'unknown', 'Unknown'
-
-    user = models.OneToOneField(settings.AUTH_USER_MODEL,on_delete=models.CASCADE,related_name='profile')
-    display_name = models.CharField(max_length=255, blank=True)
-    profile_photo = models.URLField(blank=True)
-    mobile_number = models.CharField(max_length=32, blank=True, db_index=True)
-    alternate_mobile = models.CharField(max_length=32, blank=True)
-
-    date_of_birth = models.DateField(null=True, blank=True)
-    gender = models.CharField(max_length=32, choices=Gender.choices, blank=True)
-    blood_group = models.CharField(max_length=16, choices=BloodGroup.choices, blank=True)
-
-    country = models.CharField(max_length=100, blank=True)
-    state = models.CharField(max_length=100, blank=True)
-    city = models.CharField(max_length=100, blank=True)
-    address_line1 = models.CharField(max_length=255, blank=True)
-    postal_code = models.CharField(max_length=20, blank=True)
-
-    mother_language = models.CharField(max_length=100, blank=True)
-    languages_known = models.JSONField(default=list, blank=True)
-
-    is_profile_completed = models.BooleanField(default=False, db_index=True)
-    completed_status = models.CharField(max_length=10, blank=True)
-
-    class Meta:
-        ordering = ['-created_at']
-        indexes = [
-            models.Index(fields=['is_profile_completed', 'completed_status']),
-        ]
-
-    def __str__(self) -> str:
-        return self.display_name or str(self.user)
-
-
 class OrganizationMembership(UUIDModel, TimeStampedModel, AuditedModel):
-    """Links a user profile to an organization branch with role and employment details."""
+    """Links a user to an organization branch with role and employment details."""
 
     class Status(models.TextChoices):
         ACTIVE = 'active', 'Active'
@@ -242,23 +190,43 @@ class OrganizationMembership(UUIDModel, TimeStampedModel, AuditedModel):
         PENDING = 'pending', 'Pending'
         EXITED = 'exited', 'Exited'
 
-    branch = models.ForeignKey(OrganizationBranch,on_delete=models.CASCADE,related_name='memberships')
-    user = models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.CASCADE,related_name='memberships')
-    designation = models.ForeignKey(Designation,on_delete=models.CASCADE,null=True,blank=True,related_name='memberships')
-    employee_type = models.ForeignKey(EmployeeType,on_delete=models.CASCADE,null=True,blank=True,related_name='memberships')
-    access_type = models.ForeignKey(AccessType,on_delete=models.CASCADE,null=True,blank=True,related_name='memberships')
+    branch = models.ForeignKey(OrganizationBranch, on_delete=models.CASCADE, related_name='memberships')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='memberships')
+    designation = models.ForeignKey(
+        Designation,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='memberships',
+    )
+    employee_type = models.ForeignKey(
+        EmployeeType,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='memberships',
+    )
+    access_type = models.ForeignKey(
+        AccessType,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='memberships',
+    )
     employee_code = models.CharField(max_length=64, blank=True, db_index=True)
-    status = models.CharField(max_length=32,choices=Status.choices,default=Status.ACTIVE,db_index=True)
+    status = models.CharField(max_length=32, choices=Status.choices, default=Status.ACTIVE, db_index=True)
     joining_date = models.DateField(null=True, blank=True)
     exit_date = models.DateField(null=True, blank=True)
 
     class Meta:
         ordering = ['-created_at']
         constraints = [
-            models.UniqueConstraint(fields=['branch', 'user'],
+            models.UniqueConstraint(
+                fields=['branch', 'user'],
                 name='uniq_org_membership_branch_user',
             ),
-            models.UniqueConstraint(fields=['branch', 'employee_code'],
+            models.UniqueConstraint(
+                fields=['branch', 'employee_code'],
                 condition=~models.Q(employee_code=''),
                 name='uniq_org_membership_branch_employee_code',
             ),
@@ -274,6 +242,7 @@ class OrganizationMembership(UUIDModel, TimeStampedModel, AuditedModel):
 
     def __str__(self) -> str:
         return f'{self.user} @ {self.branch}'
+
 
 class Shift(UUIDModel, TimeStampedModel, AuditedModel):
     """Organization shift."""
@@ -406,3 +375,313 @@ class Holiday(UUIDModel, TimeStampedModel, AuditedModel):
 
     def __str__(self):
         return self.name
+
+
+class EmployeeLifecycleStatus(UUIDModel, TimeStampedModel, AuditedModel):
+    """Configurable employee lifecycle statuses (Draft, Active, …)."""
+
+    name = models.CharField(max_length=120)
+    key = models.SlugField(max_length=64, unique=True)
+    ordinal = models.PositiveIntegerField(default=0, db_index=True)
+    is_initial = models.BooleanField(default=False, db_index=True)
+    is_terminal = models.BooleanField(default=False, db_index=True)
+    is_active = models.BooleanField(default=True, db_index=True)
+
+    class Meta:
+        ordering = ['ordinal', 'name']
+        indexes = [
+            models.Index(fields=['is_active', 'ordinal']),
+        ]
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class Employee(UUIDModel, TimeStampedModel, AuditedModel):
+    """Organization employee record (profile + employment + lifecycle)."""
+
+    class Gender(models.TextChoices):
+        MALE = 'male', 'Male'
+        FEMALE = 'female', 'Female'
+        OTHER = 'other', 'Other'
+        PREFER_NOT_TO_SAY = 'prefer_not_to_say', 'Prefer not to say'
+
+    class BloodGroup(models.TextChoices):
+        A_POSITIVE = 'A+', 'A+'
+        A_NEGATIVE = 'A-', 'A-'
+        B_POSITIVE = 'B+', 'B+'
+        B_NEGATIVE = 'B-', 'B-'
+        AB_POSITIVE = 'AB+', 'AB+'
+        AB_NEGATIVE = 'AB-', 'AB-'
+        O_POSITIVE = 'O+', 'O+'
+        O_NEGATIVE = 'O-', 'O-'
+        UNKNOWN = 'unknown', 'Unknown'
+
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name='employees',
+    )
+    branch = models.ForeignKey(
+        OrganizationBranch,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='employees',
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='employee_records',
+    )
+    lifecycle_status = models.ForeignKey(
+        EmployeeLifecycleStatus,
+        on_delete=models.CASCADE,
+        related_name='employees',
+    )
+    employee_code = models.CharField(max_length=64, blank=True, db_index=True)
+    email = models.EmailField(blank=True, db_index=True)
+    first_name = models.CharField(max_length=150, blank=True)
+    last_name = models.CharField(max_length=150, blank=True)
+    display_name = models.CharField(max_length=255, blank=True)
+    profile_photo = models.FileField(upload_to='employee_photos/', blank=True)
+    mobile_number = models.CharField(max_length=32, blank=True, db_index=True)
+    alternate_mobile = models.CharField(max_length=32, blank=True)
+    emergency_contact_name = models.CharField(max_length=150, blank=True)
+    emergency_contact_relationship = models.CharField(max_length=100, blank=True)
+    emergency_contact_phone = models.CharField(max_length=32, blank=True)
+    date_of_birth = models.DateField(null=True, blank=True)
+    gender = models.CharField(max_length=32, choices=Gender.choices, blank=True)
+    blood_group = models.CharField(max_length=16, choices=BloodGroup.choices, blank=True)
+    country = models.CharField(max_length=100, blank=True)
+    state = models.CharField(max_length=100, blank=True)
+    city = models.CharField(max_length=100, blank=True)
+    address_line1 = models.CharField(max_length=255, blank=True)
+    postal_code = models.CharField(max_length=20, blank=True)
+    mother_language = models.CharField(max_length=100, blank=True)
+    languages_known = models.JSONField(default=list, blank=True)
+    is_profile_completed = models.BooleanField(default=False, db_index=True)
+    completed_status = models.CharField(max_length=10, blank=True)
+    designation = models.ForeignKey(
+        Designation,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='employees',
+    )
+    employee_type = models.ForeignKey(
+        EmployeeType,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='employees',
+    )
+    access_type = models.ForeignKey(
+        AccessType,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='employees',
+    )
+    joining_date = models.DateField(null=True, blank=True)
+    exit_date = models.DateField(null=True, blank=True)
+    is_active = models.BooleanField(default=True, db_index=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['organization', 'employee_code'],
+                condition=~models.Q(employee_code=''),
+                name='uniq_employee_code_per_organization',
+            ),
+            models.UniqueConstraint(
+                fields=['organization', 'email'],
+                condition=~models.Q(email=''),
+                name='uniq_employee_email_per_organization',
+            ),
+            models.UniqueConstraint(
+                fields=['organization', 'user'],
+                condition=models.Q(user__isnull=False),
+                name='uniq_employee_user_per_organization',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['organization', 'lifecycle_status']),
+            models.Index(fields=['organization', 'is_active']),
+            models.Index(fields=['user', 'is_active']),
+            models.Index(fields=['is_profile_completed', 'completed_status']),
+        ]
+
+    def __str__(self) -> str:
+        return self.display_name or self.email or str(self.id)
+
+
+class EmployeeBankDetail(UUIDModel, TimeStampedModel, AuditedModel):
+    """Salary / payroll bank account linked to an employee."""
+
+    employee = models.ForeignKey(
+        Employee,
+        on_delete=models.CASCADE,
+        related_name='bank_details',
+    )
+    account_holder_name = models.CharField(max_length=150, blank=True)
+    bank_name = models.CharField(max_length=150, blank=True)
+    account_number = models.CharField(max_length=64, blank=True)
+    ifsc_code = models.CharField(max_length=20, blank=True)
+    is_primary = models.BooleanField(default=False, db_index=True)
+
+    class Meta:
+        ordering = ['-is_primary', 'created_at']
+        verbose_name = 'Employee bank detail'
+        verbose_name_plural = 'Employee bank details'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['employee'],
+                condition=models.Q(is_primary=True),
+                name='uniq_primary_bank_per_employee',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['employee', 'is_primary']),
+        ]
+
+    def __str__(self) -> str:
+        label = self.bank_name or self.account_number or 'Bank account'
+        return f'{self.employee_id}: {label}'
+
+
+class EmployeeEducation(UUIDModel, TimeStampedModel, AuditedModel):
+    """Education / qualification record linked to an employee."""
+
+    employee = models.ForeignKey(
+        Employee,
+        on_delete=models.CASCADE,
+        related_name='education_details',
+    )
+    degree = models.CharField(max_length=150, blank=True)
+    institution = models.CharField(max_length=255, blank=True)
+    field_of_study = models.CharField(max_length=150, blank=True)
+    year_of_passing = models.PositiveIntegerField(null=True, blank=True)
+    grade = models.CharField(max_length=64, blank=True)
+
+    class Meta:
+        ordering = ['-year_of_passing', 'created_at']
+        verbose_name = 'Employee education'
+        verbose_name_plural = 'Employee educations'
+        indexes = [
+            models.Index(fields=['employee', 'year_of_passing']),
+        ]
+
+    def __str__(self) -> str:
+        label = self.degree or self.institution or 'Education'
+        return f'{self.employee_id}: {label}'
+
+
+class EmployeeJobExperience(UUIDModel, TimeStampedModel, AuditedModel):
+    """Prior / external job experience linked to an employee."""
+
+    employee = models.ForeignKey(
+        Employee,
+        on_delete=models.CASCADE,
+        related_name='job_experiences',
+    )
+    company_name = models.CharField(max_length=255, blank=True)
+    job_title = models.CharField(max_length=150, blank=True)
+    start_date = models.DateField(null=True, blank=True)
+    end_date = models.DateField(null=True, blank=True)
+    is_current = models.BooleanField(default=False, db_index=True)
+    location = models.CharField(max_length=150, blank=True)
+    description = models.TextField(blank=True, default='')
+
+    class Meta:
+        ordering = ['-is_current', '-start_date', 'created_at']
+        verbose_name = 'Employee job experience'
+        verbose_name_plural = 'Employee job experiences'
+        indexes = [
+            models.Index(fields=['employee', 'start_date']),
+        ]
+
+    def __str__(self) -> str:
+        label = self.job_title or self.company_name or 'Experience'
+        return f'{self.employee_id}: {label}'
+
+
+class EmployeeLifecycleTransition(UUIDModel, TimeStampedModel, AuditedModel):
+    """Allowed edges between lifecycle statuses (e.g. Draft → Onboarding Started)."""
+
+    from_status = models.ForeignKey(
+        EmployeeLifecycleStatus,
+        on_delete=models.CASCADE,
+        related_name='outgoing_transitions',
+    )
+    to_status = models.ForeignKey(
+        EmployeeLifecycleStatus,
+        on_delete=models.CASCADE,
+        related_name='incoming_transitions',
+    )
+    action_label = models.CharField(max_length=120)
+    sort_order = models.PositiveIntegerField(default=0)
+    is_active = models.BooleanField(default=True, db_index=True)
+
+    class Meta:
+        ordering = ['sort_order', 'action_label']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['from_status', 'to_status'],
+                name='uniq_lifecycle_transition_from_to',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['from_status', 'is_active']),
+        ]
+
+    def __str__(self) -> str:
+        return f'{self.from_status} → {self.to_status}'
+
+
+class EmployeeLifecycleHistory(UUIDModel, TimeStampedModel):
+    """Immutable audit trail of employee lifecycle movements."""
+
+    employee = models.ForeignKey(
+        Employee,
+        on_delete=models.CASCADE,
+        related_name='lifecycle_history',
+    )
+    from_status = models.ForeignKey(
+        EmployeeLifecycleStatus,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='history_as_from',
+    )
+    to_status = models.ForeignKey(
+        EmployeeLifecycleStatus,
+        on_delete=models.CASCADE,
+        related_name='history_as_to',
+    )
+    changed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='employee_lifecycle_changes',
+    )
+    changed_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    remarks = models.TextField(blank=True, default='')
+
+    class Meta:
+        ordering = ['-changed_at']
+        indexes = [
+            models.Index(fields=['employee', 'changed_at']),
+        ]
+        default_permissions = ('add', 'view', 'delete')
+
+    def __str__(self) -> str:
+        return f'{self.employee_id}: {self.from_status_id} → {self.to_status_id}'
+
+    def delete(self, using=None, keep_parents=False):
+        raise PermissionError('Lifecycle history is immutable and cannot be deleted.')
+

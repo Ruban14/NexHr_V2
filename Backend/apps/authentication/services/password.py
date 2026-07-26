@@ -96,3 +96,37 @@ class PasswordService:
 
         SessionService.deactivate_all_for_user(user)
         return user
+
+    @classmethod
+    @transaction.atomic
+    def change_password(cls, *, user: User, current_password: str, new_password: str) -> User:
+        """Change password for an authenticated user (first-login or settings)."""
+        if not user.check_password(current_password):
+            raise ValidationServiceError(
+                message='Current password is incorrect.',
+                code='invalid_current_password',
+                details={'current_password': ['Current password is incorrect.']},
+            )
+
+        if current_password == new_password:
+            raise ValidationServiceError(
+                message='Choose a different password from your temporary one.',
+                code='password_unchanged',
+                details={'password': ['New password must be different from the current password.']},
+            )
+
+        try:
+            validate_password(new_password, user=user)
+        except DjangoValidationError as exc:
+            raise ValidationServiceError(
+                message='Password validation failed.',
+                details={'password': list(exc.messages)},
+            ) from exc
+
+        user.set_password(new_password)
+        user.must_change_password = False
+        if user.is_locked:
+            user.locked_until = None
+        user.save(update_fields=['password', 'must_change_password', 'locked_until', 'updated_at'])
+        LoginAttemptService.clear_failures_for_email(email=user.email)
+        return user

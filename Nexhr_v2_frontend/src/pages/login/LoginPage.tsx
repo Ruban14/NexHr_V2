@@ -41,7 +41,11 @@ export function LoginPage() {
     }
 
     try {
-      await auth.login(email.trim(), password, rememberMe);
+      const loggedIn = await auth.login(email.trim(), password, rememberMe);
+      if (loggedIn.must_change_password) {
+        navigate('/auth/change-password', { replace: true });
+        return;
+      }
       const token = tokenStorage.getAccessToken();
       if (token) {
         try {

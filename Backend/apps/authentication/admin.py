@@ -20,8 +20,16 @@ class UserAdmin(BaseUserAdmin):
     """Admin interface for User."""
 
     ordering = ('email',)
-    list_display = ('email', 'first_name', 'last_name', 'is_email_verified', 'is_active', 'is_staff')
-    list_filter = ('is_active', 'is_staff', 'is_superuser', 'is_email_verified')
+    list_display = (
+        'email',
+        'first_name',
+        'last_name',
+        'is_email_verified',
+        'must_change_password',
+        'is_active',
+        'is_staff',
+    )
+    list_filter = ('is_active', 'is_staff', 'is_superuser', 'is_email_verified', 'must_change_password')
     search_fields = ('email', 'first_name', 'last_name')
     readonly_fields = ('id', 'created_at', 'updated_at', 'last_login', 'locked_until')
 
@@ -30,7 +38,16 @@ class UserAdmin(BaseUserAdmin):
         ('Personal info', {'fields': ('first_name', 'last_name')}),
         (
             'Status',
-            {'fields': ('is_active', 'is_email_verified', 'is_staff', 'is_superuser', 'locked_until')},
+            {
+                'fields': (
+                    'is_active',
+                    'is_email_verified',
+                    'must_change_password',
+                    'is_staff',
+                    'is_superuser',
+                    'locked_until',
+                ),
+            },
         ),
         ('Permissions', {'fields': ('groups', 'user_permissions')}),
         ('Important dates', {'fields': ('last_login', 'created_at', 'updated_at')}),

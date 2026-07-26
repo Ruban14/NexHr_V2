@@ -5,22 +5,45 @@
   justify-content: center;
   gap: var(--space-2);
   border: 1px solid transparent;
-  border-radius: var(--radius-md);
+  border-radius: 12px;
   font: inherit;
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  font-weight: 650;
+  letter-spacing: -0.015em;
   line-height: 1;
   white-space: nowrap;
   cursor: pointer;
   min-height: 2.75rem;
-  padding: 0 1rem;
+  padding: 0 1.1rem;
   font-size: 0.9375rem;
+  overflow: hidden;
+  isolation: isolate;
   transition:
     background-color var(--transition-fast),
     border-color var(--transition-fast),
     color var(--transition-fast),
     box-shadow var(--transition-fast),
-    transform var(--transition-fast);
+    transform var(--transition-fast),
+    filter var(--transition-fast);
+}
+
+.nex-btn::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, transparent 20%, rgba(255, 255, 255, 0.22) 45%, transparent 70%);
+  transform: translateX(-120%);
+  transition: transform 0.55s var(--ease-out);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.nex-btn > * {
+  position: relative;
+  z-index: 1;
+}
+
+.nex-btn:hover:not(:disabled)::after {
+  transform: translateX(120%);
 }
 
 .nex-btn:disabled {
@@ -28,46 +51,54 @@
   cursor: not-allowed;
 }
 
+.nex-btn:active:not(:disabled) {
+  transform: translateY(1px) scale(0.985);
+}
+
 .nex-btn--full {
   width: 100%;
 }
 
 .nex-btn--lg {
-  min-height: 3rem;
-  padding: 0 1.375rem;
+  min-height: 3.1rem;
+  padding: 0 1.45rem;
   font-size: 1rem;
+  border-radius: 14px;
 }
 
 .nex-btn--primary {
-  background: var(--theme-default);
+  background: linear-gradient(145deg, var(--color-brand-400), var(--color-brand-700));
   color: var(--color-on-brand);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-brand);
 }
 
 .nex-btn--primary:hover:not(:disabled) {
-  background: var(--color-brand-700);
-  transform: translateY(-1px);
+  transform: translateY(-2px);
+  filter: brightness(1.04);
+  box-shadow: 0 14px 34px color-mix(in srgb, var(--theme-default) 35%, transparent);
 }
 
 .nex-btn--danger {
-  background: var(--color-danger-500);
+  background: linear-gradient(145deg, #fb7185, var(--color-danger-600));
   color: #fff;
-  box-shadow: var(--shadow-sm);
+  box-shadow: 0 10px 24px rgba(225, 29, 72, 0.28);
 }
 
 .nex-btn--danger:hover:not(:disabled) {
-  background: var(--color-danger-600);
-  transform: translateY(-1px);
+  transform: translateY(-2px);
 }
 
 .nex-btn--secondary {
   background: var(--color-surface-elevated);
   color: var(--color-text-primary);
   border-color: var(--color-border);
+  box-shadow: var(--shadow-sm);
 }
 
 .nex-btn--secondary:hover:not(:disabled) {
-  background: var(--color-surface-hover, #f3f4f8);
+  background: var(--color-surface-hover);
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--theme-default) 30%, var(--color-border));
 }
 
 .nex-btn--ghost {
@@ -76,15 +107,15 @@
 }
 
 .nex-btn--ghost:hover:not(:disabled) {
-  background: var(--color-surface-hover, #f3f4f8);
+  background: var(--color-surface-hover);
   color: var(--color-text-primary);
 }
 
 .nex-btn__spinner {
   width: 1rem;
   height: 1rem;
-  border: 2px solid rgba(255, 255, 255, 0.35);
-  border-top-color: #fff;
+  border: 2px solid color-mix(in srgb, currentColor 30%, transparent);
+  border-top-color: currentColor;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
