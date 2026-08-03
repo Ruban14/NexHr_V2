@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
-import { Link } from 'react-router-dom';
 import { organizationApi } from '../../api/auth';
 import { extractErrorMessage } from '../../api/client';
 import { tokenStorage } from '../../auth/tokenStorage';
@@ -14,12 +13,24 @@ type EmployeeAttendancePanelProps = {
   employeeId: string;
 };
 
-type HistoryTab = 'sessions' | 'summary';
-
 type SessionDateGroup = {
   date: string;
   sessions: AttendanceSession[];
   workedHours: number;
+};
+
+type DayHistoryRow = {
+  date: string;
+  record: AttendanceRecord | null;
+  sessions: AttendanceSession[];
+  workedHours: string | number | null;
+  hasLive: boolean;
+  hasManual: boolean;
+  isLogoutOnlyManual: boolean;
+  hasOpenLogout: boolean;
+  entryLabel: string;
+  approvalLabel: string | null;
+  notice: string | null;
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -160,6 +171,44 @@ function hasLivePunches(
   );
 }
 
+function sessionsForDate(
+  day: AttendanceRecord | null,
+  sessionRows: AttendanceSession[],
+  date: string,
+): AttendanceSession[] {
+  if (day?.sessions?.length) return day.sessions;
+  return sessionRows.filter(
+    (session) => (session.attendance_date || session.check_in?.slice(0, 10)) === date,
+  );
+}
+
+function hasMissingLogout(
+  day: AttendanceRecord | null,
+  sessionRows: AttendanceSession[],
+  date: string,
+  today: string,
+): boolean {
+  if (!date || date >= today) return false;
+  const rows = sessionsForDate(day, sessionRows, date);
+  const live = rows.filter((session) => session.source !== 'manual');
+  if (!live.length) return false;
+  if (live.some((session) => !session.check_out)) return true;
+  return Boolean(day?.is_manual && day.approval_status === 'pending');
+}
+
+function openLiveSession(
+  day: AttendanceRecord | null,
+  sessionRows: AttendanceSession[],
+  date: string,
+): AttendanceSession | null {
+  const rows = sessionsForDate(day, sessionRows, date);
+  return (
+    rows.find((session) => session.source !== 'manual' && !session.check_out) ||
+    rows.find((session) => session.source !== 'manual') ||
+    null
+  );
+}
+
 function manualSession(row: AttendanceRecord | null): AttendanceSession | null {
   if (!row?.sessions?.length) return null;
   return row.sessions.find((session) => session.source === 'manual') || row.sessions[0] || null;
@@ -184,6 +233,91 @@ function groupSessionsByDate(sessions: AttendanceSession[]): SessionDateGroup[] 
     });
 }
 
+function buildDayHistoryRows(
+  records: AttendanceRecord[],
+  todayRecord: AttendanceRecord | null,
+  sessionRows: AttendanceSession[],
+  today: string,
+): DayHistoryRow[] {
+  const byDate = new Map<string, { record: AttendanceRecord | null; sessions: AttendanceSession[] }>();
+
+  const upsert = (date: string, record: AttendanceRecord | null, extra: AttendanceSession[] = []) => {
+    const current = byDate.get(date) || { record: null, sessions: [] };
+    const mergedSessions = [...current.sessions];
+    const seen = new Set(mergedSessions.map((item) => item.id));
+    for (const session of extra) {
+      if (!seen.has(session.id)) {
+        mergedSessions.push(session);
+        seen.add(session.id);
+      }
+    }
+    byDate.set(date, {
+      record: record || current.record,
+      sessions: mergedSessions.sort((left, right) =>
+        (left.check_in || '').localeCompare(right.check_in || ''),
+      ),
+    });
+  };
+
+  for (const row of records) {
+    if (!row.attendance_date) continue;
+    upsert(row.attendance_date, row, row.sessions || []);
+  }
+  if (todayRecord?.attendance_date) {
+    upsert(todayRecord.attendance_date, todayRecord, todayRecord.sessions || []);
+  }
+  for (const group of groupSessionsByDate(sessionRows)) {
+    upsert(group.date, null, group.sessions);
+  }
+
+  return Array.from(byDate.entries())
+    .sort(([a], [b]) => b.localeCompare(a))
+    .map(([date, value]) => {
+      const live = value.sessions.filter((session) => session.source !== 'manual');
+      const manual = value.sessions.filter((session) => session.source === 'manual');
+      const hasLive = live.length > 0;
+      const hasManual = Boolean(value.record?.is_manual) || manual.length > 0;
+      const isLogoutOnlyManual = hasLive && Boolean(value.record?.is_manual);
+      const hasOpenLogout =
+        date < today && live.some((session) => !session.check_out || session.is_open);
+
+      let entryLabel = 'No punches';
+      if (isLogoutOnlyManual) entryLabel = 'Check-in + manual logout';
+      else if (hasManual && !hasLive) entryLabel = 'Manual entry';
+      else if (hasLive) entryLabel = 'Check-in / check-out';
+
+      let approvalLabel: string | null = null;
+      if (hasManual && value.record?.approval_status && value.record.approval_status !== 'not_required') {
+        approvalLabel = APPROVAL_LABELS[value.record.approval_status] || value.record.approval_status;
+      }
+
+      let notice: string | null = null;
+      if (hasOpenLogout) {
+        notice = 'No logout — still logged in';
+      } else if (date === today && value.record?.has_open_session) {
+        notice = 'Session open';
+      }
+
+      const workedHours =
+        value.record?.total_worked_hours ??
+        live.concat(manual).reduce((sum, row) => sum + (Number(row.worked_hours) || 0), 0);
+
+      return {
+        date,
+        record: value.record,
+        sessions: value.sessions,
+        workedHours,
+        hasLive,
+        hasManual,
+        isLogoutOnlyManual,
+        hasOpenLogout,
+        entryLabel,
+        approvalLabel,
+        notice,
+      };
+    });
+}
+
 export function EmployeeAttendancePanel({ employeeId }: EmployeeAttendancePanelProps) {
   const { profile } = useWorkspace();
   const isOwnProfile = Boolean(profile?.id && profile.id === employeeId);
@@ -194,7 +328,7 @@ export function EmployeeAttendancePanel({ employeeId }: EmployeeAttendancePanelP
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [historyTab, setHistoryTab] = useState<HistoryTab>('sessions');
+  const [detailDay, setDetailDay] = useState<DayHistoryRow | null>(null);
   const [now, setNow] = useState(() => new Date());
   const [manualOpen, setManualOpen] = useState(false);
   const [manualError, setManualError] = useState<string | null>(null);
@@ -203,7 +337,9 @@ export function EmployeeAttendancePanel({ employeeId }: EmployeeAttendancePanelP
   const [manualCheckIn, setManualCheckIn] = useState('');
   const [manualCheckOut, setManualCheckOut] = useState('');
   const [manualRemarks, setManualRemarks] = useState('');
-  const [manualMode, setManualMode] = useState<'create' | 'edit' | 'locked'>('create');
+  const [manualMode, setManualMode] = useState<'create' | 'edit' | 'checkout_adjust' | 'locked'>(
+    'create',
+  );
   const [manualDateLocked, setManualDateLocked] = useState(false);
 
   const applyManualDate = useCallback(
@@ -217,12 +353,30 @@ export function EmployeeAttendancePanel({ employeeId }: EmployeeAttendancePanelP
       const day = findDayRecord(records, todayRecord, date);
       const existing = day?.is_manual ? day : null;
       const approval = existing?.approval_status;
+      const today = todayIso();
+      const missingLogout = hasMissingLogout(day, sessionRows, date, today);
+
+      if (missingLogout) {
+        const live = openLiveSession(day, sessionRows, date);
+        const pending = approval === 'pending';
+        setManualMode(pending ? 'edit' : 'checkout_adjust');
+        setManualError(null);
+        setManualInfo(
+          pending
+            ? 'Missing logout adjustment is waiting for reporting manager approval. You can update the check-out time.'
+            : 'This day has check-in but no logout. Set the missing check-out; it will need reporting manager approval.',
+        );
+        setManualCheckIn(toTimeInput(live?.check_in || day?.first_check_in));
+        setManualCheckOut(toTimeInput(live?.check_out || day?.last_check_out));
+        setManualRemarks(day?.remarks || '');
+        return;
+      }
 
       if (hasLivePunches(day, sessionRows, date)) {
         setManualMode('locked');
         setManualInfo(null);
         setManualError(
-          'Check-in/check-out already exists for this date. Choose another day with no punches.',
+          'Check-in/check-out already exists for this date. Only a missing logout from a previous day can be adjusted.',
         );
         setManualCheckIn(toTimeInput(day?.first_check_in));
         setManualCheckOut(toTimeInput(day?.last_check_out));
@@ -319,6 +473,15 @@ export function EmployeeAttendancePanel({ employeeId }: EmployeeAttendancePanelP
   async function punch(action: 'check-in' | 'check-out' | 'break-start' | 'break-end') {
     const token = tokenStorage.getAccessToken();
     if (!token) return;
+    if (
+      today?.is_manual &&
+      (today.approval_status === 'pending' || today.approval_status === 'approved')
+    ) {
+      setError(
+        'This day already has a manual attendance entry. Check-in and check-out are not allowed.',
+      );
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -362,26 +525,37 @@ export function EmployeeAttendancePanel({ employeeId }: EmployeeAttendancePanelP
       setManualError('Check-in time is required for manual entry.');
       return;
     }
+    if (!manualCheckOut) {
+      setManualError('Check-out time is required for manual entry.');
+      return;
+    }
+    if (!manualRemarks.trim()) {
+      setManualError('Remarks are required for manual entry.');
+      return;
+    }
+    const adjustingLogout =
+      manualMode === 'checkout_adjust' ||
+      hasMissingLogout(findDayRecord(items, today, manualDate), sessions, manualDate, todayIso());
     setBusy(true);
     setManualError(null);
     try {
       const checkInIso = new Date(`${manualDate}T${manualCheckIn}:00`).toISOString();
-      const checkOutIso = manualCheckOut
-        ? new Date(`${manualDate}T${manualCheckOut}:00`).toISOString()
-        : null;
+      const checkOutIso = new Date(`${manualDate}T${manualCheckOut}:00`).toISOString();
       await organizationApi.manualEmployeeAttendance(token, employeeId, {
         attendance_date: manualDate,
         check_in: checkInIso,
         check_out: checkOutIso,
-        remarks: manualRemarks,
+        remarks: manualRemarks.trim(),
       });
       setManualOpen(false);
       setManualError(null);
       setManualInfo(null);
       setSuccess(
-        manualMode === 'edit'
-          ? 'Manual entry updated. Waiting for reporting manager approval.'
-          : 'Manual entry submitted for reporting manager approval.',
+        adjustingLogout
+          ? 'Missing logout submitted for reporting manager approval.'
+          : manualMode === 'edit'
+            ? 'Manual entry updated. Waiting for reporting manager approval.'
+            : 'Manual entry submitted for reporting manager approval.',
       );
       await load();
     } catch (err) {
@@ -419,13 +593,28 @@ export function EmployeeAttendancePanel({ employeeId }: EmployeeAttendancePanelP
     sessions,
     todayKeyIso,
   );
+  const adjustingLogout =
+    manualMode === 'checkout_adjust' ||
+    (manualOpen &&
+      hasMissingLogout(findDayRecord(items, today, manualDate), sessions, manualDate, todayKeyIso));
   const openSession = Boolean(today?.has_open_session);
   const onBreak = Boolean(today?.on_break);
   const tone = punchTone(openSession, onBreak);
-  const sessionGroups = useMemo(() => groupSessionsByDate(sessions), [sessions]);
-  const todayKey = today?.attendance_date || todayKeyIso;
+  const historyRows = useMemo(
+    () => buildDayHistoryRows(items, today, sessions, todayKeyIso),
+    [items, today, sessions, todayKeyIso],
+  );
+
+  const punchesLocked = Boolean(
+    today?.is_manual &&
+      (today.approval_status === 'pending' || today.approval_status === 'approved'),
+  );
   const presentDays = useMemo(
     () => items.filter((row) => row.status === 'present').length,
+    [items],
+  );
+  const pendingCount = useMemo(
+    () => items.filter((row) => row.is_manual && row.approval_status === 'pending').length,
     [items],
   );
 
@@ -433,8 +622,7 @@ export function EmployeeAttendancePanel({ employeeId }: EmployeeAttendancePanelP
     return (
       <div className="emp-attendance">
         <p className="emp-attendance__banner emp-attendance__banner--info">
-          Attendance can only be managed from your own employee profile. Use{' '}
-          <Link to="/app/attendance">Attendance</Link> for your punches.
+          Attendance can only be managed from your own employee profile.
         </p>
       </div>
     );
@@ -466,7 +654,15 @@ export function EmployeeAttendancePanel({ employeeId }: EmployeeAttendancePanelP
             </div>
           </div>
 
-          {todayManualPending && !todayHasLivePunches ? (
+          {punchesLocked ? (
+            <p className="emp-attendance__pending-note">
+              Manual entry is on record for today
+              {today?.approval_status === 'pending'
+                ? ` and waiting for ${today.expected_approver_name || 'reporting manager'} approval`
+                : ' and is approved'}
+              . Check-in and check-out are disabled for this day.
+            </p>
+          ) : todayManualPending && !todayHasLivePunches ? (
             <p className="emp-attendance__pending-note">
               Manual entry waiting for{' '}
               {today?.expected_approver_name || 'reporting manager'} approval. You can edit it
@@ -496,7 +692,12 @@ export function EmployeeAttendancePanel({ employeeId }: EmployeeAttendancePanelP
           <div className="emp-attendance__punch-footer">
             <div className="emp-attendance__actions">
               {!openSession ? (
-                <Button type="button" loading={busy} onClick={() => void punch('check-in')}>
+                <Button
+                  type="button"
+                  loading={busy}
+                  disabled={punchesLocked}
+                  onClick={() => void punch('check-in')}
+                >
                   Check in
                 </Button>
               ) : (
@@ -506,6 +707,7 @@ export function EmployeeAttendancePanel({ employeeId }: EmployeeAttendancePanelP
                       type="button"
                       variant="secondary"
                       loading={busy}
+                      disabled={punchesLocked}
                       onClick={() => void punch('break-end')}
                     >
                       End break
@@ -515,6 +717,7 @@ export function EmployeeAttendancePanel({ employeeId }: EmployeeAttendancePanelP
                       type="button"
                       variant="secondary"
                       loading={busy}
+                      disabled={punchesLocked}
                       onClick={() => void punch('break-start')}
                     >
                       Start break
@@ -523,7 +726,7 @@ export function EmployeeAttendancePanel({ employeeId }: EmployeeAttendancePanelP
                   <Button
                     type="button"
                     loading={busy}
-                    disabled={onBreak}
+                    disabled={punchesLocked || onBreak}
                     onClick={() => void punch('check-out')}
                   >
                     Check out
@@ -533,10 +736,13 @@ export function EmployeeAttendancePanel({ employeeId }: EmployeeAttendancePanelP
             </div>
 
             <div className="emp-attendance__manual-actions">
-              {todayHasLivePunches ? (
+              {todayHasLivePunches && !punchesLocked ? (
                 <span className="emp-attendance__manual-locked" title="Today already has punches">
                   Today punched
                 </span>
+              ) : null}
+              {punchesLocked ? (
+                <span className="emp-attendance__manual-locked">Manual day</span>
               ) : null}
               <Button type="button" variant="secondary" onClick={() => openManual()}>
                 Manual entry
@@ -557,8 +763,8 @@ export function EmployeeAttendancePanel({ employeeId }: EmployeeAttendancePanelP
               <strong>{presentDays}</strong>
             </li>
             <li>
-              <span>Sessions</span>
-              <strong>{sessions.length}</strong>
+              <span>Pending approvals</span>
+              <strong>{pendingCount}</strong>
             </li>
             <li>
               <span>Today status</span>
@@ -571,9 +777,6 @@ export function EmployeeAttendancePanel({ employeeId }: EmployeeAttendancePanelP
               </strong>
             </li>
           </ul>
-          <Link className="emp-attendance__full-link" to="/app/attendance">
-            Open full attendance page
-          </Link>
         </aside>
       </div>
 
@@ -581,138 +784,50 @@ export function EmployeeAttendancePanel({ employeeId }: EmployeeAttendancePanelP
         <header className="emp-attendance__history-head">
           <div>
             <h3>History</h3>
-            <p>Review punches and daily totals for recent days.</p>
-          </div>
-          <div className="emp-attendance__tabs" role="tablist" aria-label="Attendance history">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={historyTab === 'sessions'}
-              className={historyTab === 'sessions' ? 'is-active' : ''}
-              onClick={() => setHistoryTab('sessions')}
-            >
-              Sessions
-              {sessionGroups.length ? <em>{sessionGroups.length}</em> : null}
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={historyTab === 'summary'}
-              className={historyTab === 'summary' ? 'is-active' : ''}
-              onClick={() => setHistoryTab('summary')}
-            >
-              Daily summary
-              {items.length ? <em>{items.length}</em> : null}
-            </button>
+            <p>One row per day. Click a date to see sessions and manual details.</p>
           </div>
         </header>
 
-        {historyTab === 'sessions' ? (
-          sessionGroups.length ? (
-            <div className="emp-attendance__accordion">
-              {sessionGroups.map((group) => (
-                <details
-                  key={group.date}
-                  className="emp-attendance__day"
-                  open={group.date === todayKey}
-                >
-                  <summary>
-                    <span className="emp-attendance__day-main">
-                      <strong>{formatDate(group.date)}</strong>
-                      <em>
-                        {group.sessions.length} session
-                        {group.sessions.length === 1 ? '' : 's'}
-                      </em>
-                    </span>
-                    <span className="emp-attendance__day-meta">
-                      {formatHours(group.workedHours)}
-                    </span>
-                  </summary>
-                  <ul className="emp-attendance__sessions">
-                    {group.sessions.map((session) => (
-                      <li key={session.id}>
-                        <span className="emp-attendance__session-rail" aria-hidden />
-                        <div className="emp-attendance__session-body">
-                          <strong>
-                            {formatTime(session.check_in)} – {formatTime(session.check_out)}
-                          </strong>
-                          {session.breaks?.length ? (
-                            <span>
-                              Breaks:{' '}
-                              {session.breaks
-                                .map(
-                                  (item) =>
-                                    `${formatTime(item.break_start)}–${formatTime(item.break_end)}`,
-                                )
-                                .join(', ')}
-                            </span>
-                          ) : (
-                            <span>No breaks</span>
-                          )}
-                        </div>
-                        <div className="emp-attendance__list-meta">
-                          <span>{formatHours(session.worked_hours)}</span>
-                          <em className="emp-attendance__source">
-                            {SOURCE_LABELS[session.source] || session.source}
-                          </em>
-                          {session.approval_status && session.approval_status !== 'not_required' ? (
-                            <em
-                              className={`emp-attendance__status ${approvalClass(session.approval_status)}`}
-                            >
-                              {APPROVAL_LABELS[session.approval_status] || session.approval_status}
-                            </em>
-                          ) : null}
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                </details>
-              ))}
-            </div>
-          ) : (
-            <p className="emp-attendance__empty">No check-in sessions yet.</p>
-          )
-        ) : items.length ? (
+        {historyRows.length ? (
           <ul className="emp-attendance__list">
-            {items.map((row) => {
-              const canEditManual =
-                Boolean(row.is_manual) && row.approval_status === 'pending' && row.attendance_date;
-              return (
-                <li key={row.id || row.attendance_date}>
+            {historyRows.map((row) => (
+              <li key={row.date}>
+                <button
+                  type="button"
+                  className="emp-attendance__day-row"
+                  onClick={() => setDetailDay(row)}
+                >
                   <div className="emp-attendance__list-main">
-                    <strong>{formatDate(row.attendance_date)}</strong>
+                    <strong>{formatDate(row.date)}</strong>
                     <span>
-                      {formatTime(row.first_check_in)} – {formatTime(row.last_check_out)}
-                      {row.sessions?.length ? ` · ${row.sessions.length} session(s)` : ''}
+                      {formatTime(row.record?.first_check_in)} –{' '}
+                      {formatTime(row.record?.last_check_out)}
+                    </span>
+                    <span className="emp-attendance__day-tags">
+                      <em className="emp-attendance__source">{row.entryLabel}</em>
+                      {row.approvalLabel ? (
+                        <em
+                          className={`emp-attendance__status ${approvalClass(row.record?.approval_status)}`}
+                        >
+                          {row.approvalLabel}
+                        </em>
+                      ) : null}
+                      {row.notice ? (
+                        <em className="emp-attendance__status is-warn">{row.notice}</em>
+                      ) : null}
                     </span>
                   </div>
                   <div className="emp-attendance__list-meta">
-                    <span className="emp-attendance__hours">
-                      {formatHours(row.total_worked_hours)}
-                    </span>
-                    <em className={`emp-attendance__status ${statusClass(row.status)}`}>
-                      {STATUS_LABELS[row.status || ''] || row.status || '—'}
-                    </em>
-                    {row.approval_status && row.approval_status !== 'not_required' ? (
-                      <em
-                        className={`emp-attendance__status ${approvalClass(row.approval_status)}`}
-                      >
-                        {APPROVAL_LABELS[row.approval_status] || row.approval_status}
+                    <span className="emp-attendance__hours">{formatHours(row.workedHours)}</span>
+                    {row.record?.status ? (
+                      <em className={`emp-attendance__status ${statusClass(row.record.status)}`}>
+                        {STATUS_LABELS[row.record.status] || row.record.status}
                       </em>
                     ) : null}
-                    {canEditManual ? (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        onClick={() => openManual(row.attendance_date || undefined, true)}
-                      >
-                        Edit
-                      </Button>
-                    ) : null}
                   </div>
-                </li>
-              );
-            })}
+                </button>
+              </li>
+            ))}
           </ul>
         ) : (
           <p className="emp-attendance__empty">No attendance records yet.</p>
@@ -720,8 +835,176 @@ export function EmployeeAttendancePanel({ employeeId }: EmployeeAttendancePanelP
       </section>
 
       <Modal
+        open={Boolean(detailDay)}
+        title={detailDay ? formatDate(detailDay.date) : 'Day details'}
+        onClose={() => setDetailDay(null)}
+        size="lg"
+        footer={
+          <>
+            {detailDay?.hasOpenLogout ||
+            (detailDay?.hasManual && detailDay.record?.approval_status === 'pending') ? (
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => {
+                  const date = detailDay?.date;
+                  setDetailDay(null);
+                  if (date) openManual(date, true);
+                }}
+              >
+                {detailDay?.hasOpenLogout ? 'Fix logout' : 'Edit manual entry'}
+              </Button>
+            ) : null}
+            <Button type="button" variant="ghost" onClick={() => setDetailDay(null)}>
+              Close
+            </Button>
+          </>
+        }
+      >
+        {detailDay ? (
+          <div className="emp-attendance__day-detail">
+            <div className="emp-attendance__day-summary">
+              <div>
+                <span>Total worked</span>
+                <strong>{formatHours(detailDay.workedHours)}</strong>
+              </div>
+              <div>
+                <span>Entry type</span>
+                <strong>{detailDay.entryLabel}</strong>
+              </div>
+              <div>
+                <span>Status</span>
+                <strong>
+                  {detailDay.record?.status
+                    ? STATUS_LABELS[detailDay.record.status] || detailDay.record.status
+                    : detailDay.hasOpenLogout
+                      ? 'No logout'
+                      : '—'}
+                </strong>
+              </div>
+              <div>
+                <span>Approval</span>
+                <strong>{detailDay.approvalLabel || 'Not required'}</strong>
+              </div>
+            </div>
+
+            {detailDay.notice ? (
+              <p className="emp-attendance__banner emp-attendance__banner--info">{detailDay.notice}</p>
+            ) : null}
+
+            {detailDay.isLogoutOnlyManual ? (
+              <div className="emp-attendance__detail-block">
+                <h4>Logout adjustment</h4>
+                <p>
+                  This day has a live check-in, and logout was submitted manually
+                  {detailDay.approvalLabel ? ` (${detailDay.approvalLabel.toLowerCase()})` : ''}.
+                </p>
+                {detailDay.record?.remarks ? (
+                  <p>
+                    <strong>Remarks:</strong> {detailDay.record.remarks}
+                  </p>
+                ) : null}
+                {detailDay.record?.expected_approver_name ? (
+                  <p>
+                    <strong>Approver:</strong> {detailDay.record.expected_approver_name}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+
+            {detailDay.hasManual && !detailDay.isLogoutOnlyManual ? (
+              <div className="emp-attendance__detail-block">
+                <h4>Manual entry</h4>
+                <p>
+                  Full day was entered manually
+                  {detailDay.approvalLabel ? ` · ${detailDay.approvalLabel}` : ''}.
+                </p>
+                {detailDay.record?.remarks ? (
+                  <p>
+                    <strong>Remarks:</strong> {detailDay.record.remarks}
+                  </p>
+                ) : null}
+                {detailDay.record?.approved_by_name ? (
+                  <p>
+                    <strong>Reviewed by:</strong> {detailDay.record.approved_by_name}
+                    {detailDay.record.approved_at
+                      ? ` · ${new Date(detailDay.record.approved_at).toLocaleString()}`
+                      : ''}
+                  </p>
+                ) : detailDay.record?.expected_approver_name ? (
+                  <p>
+                    <strong>Approver:</strong> {detailDay.record.expected_approver_name}
+                  </p>
+                ) : null}
+                {detailDay.record?.approval_remarks ? (
+                  <p>
+                    <strong>Review notes:</strong> {detailDay.record.approval_remarks}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+
+            {detailDay.hasLive ? (
+              <div className="emp-attendance__detail-block">
+                <h4>Live check-in / check-out</h4>
+                <p>Punches recorded from web or other live sources.</p>
+              </div>
+            ) : null}
+
+            <div className="emp-attendance__detail-block">
+              <h4>Sessions ({detailDay.sessions.length})</h4>
+              {detailDay.sessions.length ? (
+                <ul className="emp-attendance__sessions">
+                  {detailDay.sessions.map((session) => (
+                    <li key={session.id}>
+                      <span className="emp-attendance__session-rail" aria-hidden />
+                      <div className="emp-attendance__session-body">
+                        <strong>
+                          {formatTime(session.check_in)} – {formatTime(session.check_out)}
+                          {!session.check_out ? ' (no logout)' : ''}
+                        </strong>
+                        <span>
+                          {SOURCE_LABELS[session.source] || session.source}
+                          {session.source === 'manual' ? ' · Manual' : ' · Live'}
+                        </span>
+                        {session.breaks?.length ? (
+                          <span>
+                            Breaks:{' '}
+                            {session.breaks
+                              .map(
+                                (item) =>
+                                  `${formatTime(item.break_start)}–${formatTime(item.break_end)}`,
+                              )
+                              .join(', ')}
+                          </span>
+                        ) : (
+                          <span>No breaks</span>
+                        )}
+                        {session.remarks ? <span>Note: {session.remarks}</span> : null}
+                      </div>
+                      <div className="emp-attendance__list-meta">
+                        <span>{formatHours(session.worked_hours)}</span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="emp-attendance__empty">No sessions for this day.</p>
+              )}
+            </div>
+          </div>
+        ) : null}
+      </Modal>
+
+      <Modal
         open={manualOpen}
-        title={manualMode === 'edit' ? 'Edit manual attendance' : 'Manual attendance'}
+        title={
+          manualMode === 'edit'
+            ? 'Edit manual attendance'
+            : manualMode === 'checkout_adjust'
+              ? 'Adjust missing logout'
+              : 'Manual attendance'
+        }
         onClose={closeManual}
         footer={
           <>
@@ -738,8 +1021,8 @@ export function EmployeeAttendancePanel({ employeeId }: EmployeeAttendancePanelP
       >
         <form id="emp-attendance-manual" className="emp-attendance__manual" onSubmit={saveManual}>
           <p className="emp-attendance__manual-hint">
-            Pick any day without check-in/check-out. If today is already punched, choose yesterday
-            or another open day. Pending requests can be edited; approved requests cannot.
+            Check-in, check-out, and remarks are required. After a manual entry is submitted for a
+            day, live check-in and check-out are blocked for that day.
           </p>
           {manualInfo ? (
             <p className="emp-attendance__banner emp-attendance__banner--info">{manualInfo}</p>
@@ -764,7 +1047,7 @@ export function EmployeeAttendancePanel({ employeeId }: EmployeeAttendancePanelP
               type="time"
               required
               value={manualCheckIn}
-              disabled={manualMode === 'locked'}
+              disabled={manualMode === 'locked' || adjustingLogout}
               onChange={(event) => setManualCheckIn(event.target.value)}
             />
           </label>
@@ -772,6 +1055,7 @@ export function EmployeeAttendancePanel({ employeeId }: EmployeeAttendancePanelP
             <span>Check out</span>
             <input
               type="time"
+              required
               value={manualCheckOut}
               disabled={manualMode === 'locked'}
               onChange={(event) => setManualCheckOut(event.target.value)}
@@ -781,6 +1065,7 @@ export function EmployeeAttendancePanel({ employeeId }: EmployeeAttendancePanelP
             <span>Remarks</span>
             <textarea
               rows={2}
+              required
               value={manualRemarks}
               disabled={manualMode === 'locked'}
               onChange={(event) => setManualRemarks(event.target.value)}

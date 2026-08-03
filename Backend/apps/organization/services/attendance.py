@@ -28,12 +28,13 @@ from apps.attendance.models import (
     AttendanceBreak,
     AttendanceSession,
 )
-from apps.organization.services.leaves import LeaveService
 from apps.organization.services.workspace import WorkspaceService
 
 
 class AttendanceService:
     """Manage attendance punch records and daily summaries."""
+
+    PENDING_CHECKOUT_MARKER = '__nexhr_pending_checkout__'
 
     @classmethod
     def require_admin(cls, user: User, branch_id: str | UUID | None) -> OrganizationMembership:
@@ -46,6 +47,59 @@ class AttendanceService:
                 code='not_organization_admin',
             )
         return membership
+
+    @classmethod
+    def expected_approver(cls, employee: Employee) -> Employee | None:
+        """Only the employee's direct reporting manager may approve attendance."""
+        manager = employee.reporting_manager
+        if (
+            manager is not None
+            and manager.is_active
+            and manager.user_id
+            and manager.id != employee.id
+        ):
+            return manager
+        return None
+
+    @classmethod
+    def can_review_attendance(
+        cls,
+        *,
+        user: User,
+        employee: Employee,
+    ) -> bool:
+        """True only when the current user is the employee's reporting manager."""
+        if employee.user_id and employee.user_id == user.id:
+            return False
+        manager = cls.expected_approver(employee)
+        return bool(manager is not None and manager.user_id == user.id)
+
+    @classmethod
+    def _has_pending_checkout_marker(cls, remarks: str | None) -> bool:
+        return cls.PENDING_CHECKOUT_MARKER in (remarks or '')
+
+    @classmethod
+    def _with_pending_checkout_marker(cls, remarks: str | None) -> str:
+        text = (remarks or '').strip()
+        if cls.PENDING_CHECKOUT_MARKER in text:
+            return text[:255]
+        if text:
+            return f'{text} {cls.PENDING_CHECKOUT_MARKER}'[:255]
+        return cls.PENDING_CHECKOUT_MARKER
+
+    @classmethod
+    def _without_pending_checkout_marker(cls, remarks: str | None) -> str:
+        text = (remarks or '').replace(cls.PENDING_CHECKOUT_MARKER, '')
+        return ' '.join(text.split())[:255]
+
+    @classmethod
+    def _open_live_session(cls, attendance: Attendance) -> AttendanceSession | None:
+        return (
+            AttendanceSession.objects.filter(attendance=attendance, check_out__isnull=True)
+            .exclude(source=AttendanceSession.Source.MANUAL)
+            .order_by('-check_in')
+            .first()
+        )
 
     @classmethod
     def _membership(cls, user: User, branch_id: str | UUID | None) -> OrganizationMembership:
@@ -129,6 +183,21 @@ class AttendanceService:
     ) -> None:
         del membership  # kept for call-site compatibility
         cls._assert_own_employee(user=user, employee=employee, action='punch attendance for')
+
+    @classmethod
+    def _assert_day_allows_live_punch(cls, attendance: Attendance) -> None:
+        """Live punches are blocked once a manual entry exists for the day."""
+        if not attendance.is_manual:
+            return
+        if attendance.approval_status in {
+            Attendance.ApprovalStatus.PENDING,
+            Attendance.ApprovalStatus.APPROVED,
+        }:
+            raise ConflictServiceError(
+                'This day already has a manual attendance entry. '
+                'Check-in and check-out are not allowed.',
+                code='manual_day_no_punch',
+            )
 
     @classmethod
     def _org_tz(cls, organization) -> ZoneInfo:
@@ -339,7 +408,7 @@ class AttendanceService:
             'check_out': item.check_out.isoformat() if item.check_out else None,
             'worked_hours': cls._duration_hours(item.worked_hours),
             'source': item.source,
-            'remarks': item.remarks,
+            'remarks': cls._without_pending_checkout_marker(item.remarks),
             'is_open': item.check_out is None,
             'breaks': [cls.serialize_break(row) for row in breaks],
             'created_at': item.created_at.isoformat(),
@@ -600,10 +669,15 @@ class AttendanceService:
                 employee=employee,
                 attendance_date=today,
             )
-            .select_related('employee', 'employee__designation')
+            .select_related(
+                'employee',
+                'employee__designation',
+                'employee__reporting_manager',
+            )
             .prefetch_related(cls._sessions_prefetch())
             .first()
         )
+        expected = cls.expected_approver(employee)
         if attendance is None:
             return {
                 'id': None,
@@ -625,10 +699,14 @@ class AttendanceService:
                 'has_open_session': False,
                 'on_break': False,
                 'sessions': [],
+                'is_manual': False,
+                'approval_status': Attendance.ApprovalStatus.NOT_REQUIRED,
+                'expected_approver_id': str(expected.id) if expected else None,
+                'expected_approver_name': cls._employee_display_name(expected) if expected else None,
                 'created_at': None,
                 'updated_at': None,
             }
-        return cls.serialize_attendance(attendance)
+        return cls.serialize_attendance(attendance, expected_approver=expected)
 
     @classmethod
     def get_detail(
@@ -686,6 +764,7 @@ class AttendanceService:
             user=user,
             status=Attendance.Status.PRESENT,
         )
+        cls._assert_day_allows_live_punch(attendance)
         open_session = cls._open_session(attendance)
         if open_session is not None:
             raise ConflictServiceError(
@@ -739,6 +818,7 @@ class AttendanceService:
                 'No attendance record for today. Check in first.',
                 code='attendance_missing',
             )
+        cls._assert_day_allows_live_punch(attendance)
 
         session = cls._open_session(attendance)
         if session is None:
@@ -804,6 +884,7 @@ class AttendanceService:
                 'No attendance record for today. Check in first.',
                 code='attendance_missing',
             )
+        cls._assert_day_allows_live_punch(attendance)
         session = cls._open_session(attendance)
         if session is None:
             raise ValidationServiceError(
@@ -860,6 +941,7 @@ class AttendanceService:
                 'No attendance record for today.',
                 code='attendance_missing',
             )
+        cls._assert_day_allows_live_punch(attendance)
         session = cls._open_session(attendance)
         if session is None:
             raise ValidationServiceError(
@@ -921,6 +1003,7 @@ class AttendanceService:
                 code='attendance_date_required',
             )
 
+        today = cls._local_today(organization)
         status_value = (payload.get('status') or Attendance.Status.PRESENT).strip().lower()
         if status_value not in Attendance.Status.values:
             raise ValidationServiceError('Invalid attendance status.', code='invalid_status')
@@ -935,12 +1018,23 @@ class AttendanceService:
             organization=organization,
             field='check_out',
         )
+        remarks = (payload.get('remarks') or '').strip()
         if check_in is None:
             raise ValidationServiceError(
                 'Check-in time is required for manual entry.',
                 code='check_in_required',
             )
-        if check_out and check_out < check_in:
+        if check_out is None:
+            raise ValidationServiceError(
+                'Check-out time is required for manual entry.',
+                code='check_out_required',
+            )
+        if not remarks:
+            raise ValidationServiceError(
+                'Remarks are required for manual entry.',
+                code='remarks_required',
+            )
+        if check_out < check_in:
             raise ValidationServiceError(
                 'Check-out cannot be before check-in.',
                 code='invalid_check_out',
@@ -961,7 +1055,22 @@ class AttendanceService:
                 code='manual_already_approved',
             )
 
-        if existing is not None:
+        open_live = cls._open_live_session(existing) if existing is not None else None
+        pending_checkout_session = None
+        if existing is not None and open_live is None:
+            pending_checkout_session = (
+                AttendanceSession.objects.filter(attendance=existing)
+                .exclude(source=AttendanceSession.Source.MANUAL)
+                .filter(remarks__contains=cls.PENDING_CHECKOUT_MARKER)
+                .order_by('-check_in')
+                .first()
+            )
+        is_logout_adjustment = bool(
+            attendance_date < today
+            and (open_live is not None or pending_checkout_session is not None)
+        )
+
+        if existing is not None and not is_logout_adjustment:
             has_live_punches = (
                 AttendanceSession.objects.filter(attendance=existing)
                 .exclude(source=AttendanceSession.Source.MANUAL)
@@ -969,54 +1078,101 @@ class AttendanceService:
             )
             if has_live_punches:
                 raise ValidationServiceError(
-                    'Check-in/check-out already exists for this date. Manual adjustment is not allowed.',
+                    'Check-in/check-out already exists for this date. '
+                    'Only a missing logout from a previous day can be adjusted manually.',
                     code='manual_not_allowed_with_punches',
                 )
 
-        attendance = cls._get_or_create_day(
-            organization=organization,
-            employee=employee,
-            attendance_date=attendance_date,
-            user=user,
-            status=status_value,
-        )
-        attendance.status = status_value
-        attendance.remarks = (payload.get('remarks') or '')[:2000]
-        attendance.is_manual = True
-        attendance.approval_status = Attendance.ApprovalStatus.PENDING
-        attendance.approved_by = None
-        attendance.approved_at = None
-        attendance.approval_remarks = ''
-        attendance.updated_by = user
-        attendance.save(
-            update_fields=[
-                'status',
-                'remarks',
-                'is_manual',
-                'approval_status',
-                'approved_by',
-                'approved_at',
-                'approval_remarks',
-                'updated_by',
-                'updated_at',
-            ]
-        )
+        if is_logout_adjustment:
+            target_session = open_live or pending_checkout_session
+            # Keep the original punch check-in; ignore/override payload check-in.
+            check_in = target_session.check_in
+            if check_out < check_in:
+                raise ValidationServiceError(
+                    'Check-out cannot be before check-in.',
+                    code='invalid_check_out',
+                )
+            open_break = cls._open_break(target_session)
+            if open_break is not None:
+                raise ConflictServiceError(
+                    'End the open break before adjusting logout for this day.',
+                    code='attendance_break_open',
+                )
 
-        # Replace previous manual sessions only; keep live web/mobile punches.
-        # One manual request per day — pending edits overwrite the existing session.
-        AttendanceSession.objects.filter(
-            attendance=attendance,
-            source=AttendanceSession.Source.MANUAL,
-        ).delete()
-        AttendanceSession.objects.create(
-            attendance=attendance,
-            check_in=check_in,
-            check_out=check_out,
-            source=AttendanceSession.Source.MANUAL,
-            remarks=(payload.get('session_remarks') or '')[:255],
-            created_by=user,
-            updated_by=user,
-        )
+            target_session.check_out = check_out
+            target_session.remarks = cls._with_pending_checkout_marker(target_session.remarks)
+            target_session.updated_by = user
+            target_session.save(
+                update_fields=['check_out', 'remarks', 'updated_by', 'updated_at']
+            )
+
+            attendance = existing
+            attendance.status = status_value
+            attendance.remarks = remarks[:2000]
+            attendance.is_manual = True
+            attendance.approval_status = Attendance.ApprovalStatus.PENDING
+            attendance.approved_by = None
+            attendance.approved_at = None
+            attendance.approval_remarks = ''
+            attendance.updated_by = user
+            attendance.save(
+                update_fields=[
+                    'status',
+                    'remarks',
+                    'is_manual',
+                    'approval_status',
+                    'approved_by',
+                    'approved_at',
+                    'approval_remarks',
+                    'updated_by',
+                    'updated_at',
+                ]
+            )
+        else:
+            attendance = cls._get_or_create_day(
+                organization=organization,
+                employee=employee,
+                attendance_date=attendance_date,
+                user=user,
+                status=status_value,
+            )
+            attendance.status = status_value
+            attendance.remarks = remarks[:2000]
+            attendance.is_manual = True
+            attendance.approval_status = Attendance.ApprovalStatus.PENDING
+            attendance.approved_by = None
+            attendance.approved_at = None
+            attendance.approval_remarks = ''
+            attendance.updated_by = user
+            attendance.save(
+                update_fields=[
+                    'status',
+                    'remarks',
+                    'is_manual',
+                    'approval_status',
+                    'approved_by',
+                    'approved_at',
+                    'approval_remarks',
+                    'updated_by',
+                    'updated_at',
+                ]
+            )
+
+            # Replace previous manual sessions only; keep live web/mobile punches.
+            # One manual request per day — pending edits overwrite the existing session.
+            AttendanceSession.objects.filter(
+                attendance=attendance,
+                source=AttendanceSession.Source.MANUAL,
+            ).delete()
+            AttendanceSession.objects.create(
+                attendance=attendance,
+                check_in=check_in,
+                check_out=check_out,
+                source=AttendanceSession.Source.MANUAL,
+                remarks=(payload.get('session_remarks') or '')[:255],
+                created_by=user,
+                updated_by=user,
+            )
 
         attendance = cls._recompute(attendance, user=user)
         attendance = (
@@ -1032,7 +1188,7 @@ class AttendanceService:
         )
         return cls.serialize_attendance(
             attendance,
-            expected_approver=LeaveService.expected_approver(employee),
+            expected_approver=cls.expected_approver(employee),
         )
 
     @classmethod
@@ -1087,36 +1243,27 @@ class AttendanceService:
 
         pending_for_me = 0
         for row in pending_qs[:300]:
-            if LeaveService.can_review_leave(
-                user=user,
-                employee=row.employee,
-                membership=membership,
-            ):
+            if cls.can_review_attendance(user=user, employee=row.employee):
                 pending_for_me += 1
 
         items: list[dict] = []
         for row in qs[:300]:
             employee = row.employee
-            in_scope = LeaveService.can_review_leave(
-                user=user,
-                employee=employee,
-                membership=membership,
-            ) or row.approved_by_id == user.id
+            in_scope = (
+                cls.can_review_attendance(user=user, employee=employee)
+                or row.approved_by_id == user.id
+            )
             if not in_scope:
                 continue
             can_review = (
                 row.approval_status == Attendance.ApprovalStatus.PENDING
-                and LeaveService.can_review_leave(
-                    user=user,
-                    employee=employee,
-                    membership=membership,
-                )
+                and cls.can_review_attendance(user=user, employee=employee)
             )
             items.append(
                 cls.serialize_attendance(
                     row,
                     can_review=can_review,
-                    expected_approver=LeaveService.expected_approver(employee),
+                    expected_approver=cls.expected_approver(employee),
                 )
             )
 
@@ -1164,13 +1311,9 @@ class AttendanceService:
                 code='attendance_not_pending',
             )
 
-        if not LeaveService.can_review_leave(
-            user=user,
-            employee=attendance.employee,
-            membership=membership,
-        ):
+        if not cls.can_review_attendance(user=user, employee=attendance.employee):
             raise PermissionDeniedServiceError(
-                'Only the reporting manager or a higher manager can review this attendance entry.',
+                'Only the reporting manager can review this attendance entry.',
                 code='not_attendance_approver',
             )
 
@@ -1179,7 +1322,18 @@ class AttendanceService:
         attendance.approval_remarks = (remarks or '')[:2000]
         attendance.updated_by = user
 
+        pending_checkout_sessions = list(
+            AttendanceSession.objects.filter(
+                attendance=attendance,
+                remarks__contains=cls.PENDING_CHECKOUT_MARKER,
+            )
+        )
+
         if approve:
+            for session in pending_checkout_sessions:
+                session.remarks = cls._without_pending_checkout_marker(session.remarks)
+                session.updated_by = user
+                session.save(update_fields=['remarks', 'updated_by', 'updated_at'])
             attendance.approval_status = Attendance.ApprovalStatus.APPROVED
             attendance.save(
                 update_fields=[
@@ -1193,13 +1347,32 @@ class AttendanceService:
             )
         else:
             attendance.approval_status = Attendance.ApprovalStatus.REJECTED
-            AttendanceSession.objects.filter(
-                attendance=attendance,
-                source=AttendanceSession.Source.MANUAL,
-            ).delete()
+            attendance.is_manual = False
+            if pending_checkout_sessions:
+                # Missing-logout adjustment: reopen the original punch session.
+                for session in pending_checkout_sessions:
+                    session.check_out = None
+                    session.worked_hours = None
+                    session.remarks = cls._without_pending_checkout_marker(session.remarks)
+                    session.updated_by = user
+                    session.save(
+                        update_fields=[
+                            'check_out',
+                            'worked_hours',
+                            'remarks',
+                            'updated_by',
+                            'updated_at',
+                        ]
+                    )
+            else:
+                AttendanceSession.objects.filter(
+                    attendance=attendance,
+                    source=AttendanceSession.Source.MANUAL,
+                ).delete()
             attendance.save(
                 update_fields=[
                     'approval_status',
+                    'is_manual',
                     'approved_by',
                     'approved_at',
                     'approval_remarks',
@@ -1218,5 +1391,5 @@ class AttendanceService:
         return cls.serialize_attendance(
             attendance,
             can_review=False,
-            expected_approver=LeaveService.expected_approver(attendance.employee),
+            expected_approver=cls.expected_approver(attendance.employee),
         )

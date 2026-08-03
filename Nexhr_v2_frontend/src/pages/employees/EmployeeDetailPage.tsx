@@ -9,7 +9,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { organizationApi } from '../../api/auth';
 import { extractErrorMessage, extractFieldErrors } from '../../api/client';
 import { tokenStorage } from '../../auth/tokenStorage';
@@ -503,6 +503,7 @@ function formatAccountNumber(value?: string) {
 
 export function EmployeeDetailPage() {
   const { employeeId = '' } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { currentBranch, organization, profile } = useWorkspace();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [employee, setEmployee] = useState<EmployeeRecord | null>(null);
@@ -1025,6 +1026,18 @@ export function EmployeeDetailPage() {
       setActiveTab('profile');
     }
   }, [isOwnProfile, activeTab]);
+
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (!tab) return;
+    const allowed = TABS.some((item) => item.id === tab);
+    if (!allowed) return;
+    if (tab === 'attendance' && !isOwnProfile) return;
+    setActiveTab(tab as DetailTab);
+    const next = new URLSearchParams(searchParams);
+    next.delete('tab');
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams, isOwnProfile]);
 
   if (loading) {
     return (

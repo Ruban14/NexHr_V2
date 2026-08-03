@@ -980,17 +980,17 @@ class AttendanceManualSerializer(serializers.Serializer):
         required=False,
         default='present',
     )
-    check_in = serializers.CharField(required=False, allow_blank=True, allow_null=True)
-    check_out = serializers.CharField(required=False, allow_blank=True, allow_null=True)
-    remarks = serializers.CharField(required=False, allow_blank=True, default='')
+    check_in = serializers.CharField(required=True, allow_blank=False)
+    check_out = serializers.CharField(required=True, allow_blank=False)
+    remarks = serializers.CharField(required=True, allow_blank=False, max_length=2000)
     session_remarks = serializers.CharField(required=False, allow_blank=True, default='')
 
-    def to_internal_value(self, data):
-        mutable = _as_plain_dict(data)
-        for key in ('check_in', 'check_out'):
-            if mutable.get(key) in ('', None):
-                mutable[key] = None
-        return super().to_internal_value(mutable)
+    def validate_remarks(self, value):
+        cleaned = (value or '').strip()
+        if not cleaned:
+            raise serializers.ValidationError('Remarks are required for manual attendance.')
+        return cleaned
+
 
 
 class AttendanceReviewSerializer(serializers.Serializer):

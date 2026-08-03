@@ -17,8 +17,8 @@ import { DocumentPolicyBuilderPage } from './pages/organization-setup/DocumentPo
 import { DocumentsPage } from './pages/organization-setup/DocumentsPage';
 import { AssetsPage } from './pages/organization-setup/AssetsPage';
 import { LeaveApprovalsPage } from './pages/leave-approvals/LeaveApprovalsPage';
-import { AttendancePage } from './pages/attendance/AttendancePage';
 import { AttendanceApprovalsPage } from './pages/attendance/AttendanceApprovalsPage';
+import { AttendanceRedirect } from './pages/attendance/AttendanceRedirect';
 import { LeavePoliciesPage } from './pages/organization-setup/LeavePoliciesPage';
 import { LeavePolicyBuilderPage } from './pages/organization-setup/LeavePolicyBuilderPage';
 import { HolidaysPage } from './pages/organization-setup/HolidaysPage';
@@ -67,8 +67,8 @@ export default function App() {
               <Route path="employees" element={<EmployeesPage />} />
               <Route path="employees/:employeeId" element={<EmployeeDetailPage />} />
               <Route path="leave-approvals" element={<LeaveApprovalsPage />} />
-              <Route path="attendance" element={<AttendancePage />} />
               <Route path="attendance-approvals" element={<AttendanceApprovalsPage />} />
+              <Route path="attendance" element={<AttendanceRedirect />} />
               <Route path="organization" element={<OrganizationEditPage />} />
               <Route path="setup" element={<OrganizationSetupLayout />}>
                 <Route index element={<OrganizationSetupOverviewPage />} />

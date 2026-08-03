@@ -6,3 +6,8 @@ class OrganizationConfig(AppConfig):
     name = 'apps.organization'
     label = 'organization'
     verbose_name = 'Organization'
+
+    def ready(self) -> None:
+        from apps.organization.admin_grouping import install_admin_grouping
+
+        install_admin_grouping()

@@ -12,7 +12,6 @@ function resolvePageTitle(pathname: string): string {
   if (pathname.includes('/employees')) return 'Employees';
   if (pathname.includes('/leave-approvals')) return 'Leave approvals';
   if (pathname.includes('/attendance-approvals')) return 'Attendance approvals';
-  if (pathname.includes('/attendance')) return 'Attendance';
   if (pathname.includes('/setup')) return 'Organization setup';
   if (pathname.includes('/organization')) return 'Organization';
   if (pathname.includes('/profile')) return 'Your profile';
@@ -183,7 +182,6 @@ export function AppShell() {
   const navItems = [
     { to: '/app', end: true, label: 'Home', icon: 'home' },
     { to: '/app/employees', end: false, label: 'Employees', icon: 'people' },
-    { to: '/app/attendance', end: false, label: 'Attendance', icon: 'attendance' },
     { to: '/app/attendance-approvals', end: false, label: 'Attendance approvals', icon: 'attendance' },
     { to: '/app/leave-approvals', end: false, label: 'Leave approvals', icon: 'leave' },
     { to: '/app/setup', end: false, label: 'Organization setup', icon: 'setup' },

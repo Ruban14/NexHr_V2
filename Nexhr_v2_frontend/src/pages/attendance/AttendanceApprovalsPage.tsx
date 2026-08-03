@@ -260,7 +260,7 @@ export function AttendanceApprovalsPage() {
     <section className="att-approvals">
       <PageHeader
         title="Attendance approvals"
-        description="Review manual check-in / check-out entries from your team."
+        description="Review manual entries and missing-logout adjustments from your team."
         actions={
           pendingCount ? (
             <span className="att-approvals__pending-pill">{pendingCount} pending</span>
