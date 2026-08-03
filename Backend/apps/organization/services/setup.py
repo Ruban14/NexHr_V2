@@ -20,7 +20,7 @@ from apps.organization.models import (
     OrganizationBranch,
     OrganizationMembership,
 )
-from apps.organization.services.lifecycle import EmployeeLifecycleEngine
+from apps.organization.services.lifecycle import EmployeeService
 from apps.organization.services.workspace import WorkspaceService
 
 DEFAULT_INDUSTRIES: tuple[str, ...] = (
@@ -220,7 +220,7 @@ class OrganizationSetupService:
 
     @classmethod
     def _generate_employee_code(cls, organization: Organization) -> str:
-        return EmployeeLifecycleEngine._generate_employee_code(organization)
+        return EmployeeService._generate_employee_code(organization)
 
     @classmethod
     def _serialize_organization(cls, organization: Organization) -> dict:
@@ -241,6 +241,7 @@ class OrganizationSetupService:
             'city': organization.city,
             'timezone': organization.timezone,
             'currency': organization.currency,
+            'notice_period_days': organization.notice_period_days,
             'is_active': organization.is_active,
             'owner_id': str(organization.owner_id),
         }

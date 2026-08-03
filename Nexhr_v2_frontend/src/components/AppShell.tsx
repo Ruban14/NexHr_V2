@@ -10,6 +10,9 @@ import './AppShell.css';
 function resolvePageTitle(pathname: string): string {
   if (pathname.includes('/employees/')) return 'Employee profile';
   if (pathname.includes('/employees')) return 'Employees';
+  if (pathname.includes('/leave-approvals')) return 'Leave approvals';
+  if (pathname.includes('/attendance-approvals')) return 'Attendance approvals';
+  if (pathname.includes('/attendance')) return 'Attendance';
   if (pathname.includes('/setup')) return 'Organization setup';
   if (pathname.includes('/organization')) return 'Organization';
   if (pathname.includes('/profile')) return 'Your profile';
@@ -44,6 +47,21 @@ function NavIcon({ name }: { name: string }) {
           <path d="M3.5 19a5.5 5.5 0 0 1 11 0" />
           <circle cx="17" cy="9" r="2.4" />
           <path d="M20.5 19a4.2 4.2 0 0 0-4-4" />
+        </svg>
+      );
+    case 'leave':
+      return (
+        <svg {...props}>
+          <rect x="4" y="5" width="16" height="15" rx="2" />
+          <path d="M8 3v4M16 3v4M4 10h16" />
+          <path d="m9 15 2 2 4-4" />
+        </svg>
+      );
+    case 'attendance':
+      return (
+        <svg {...props}>
+          <circle cx="12" cy="12" r="8" />
+          <path d="M12 8v4l2.5 1.5" />
         </svg>
       );
     case 'setup':
@@ -165,6 +183,9 @@ export function AppShell() {
   const navItems = [
     { to: '/app', end: true, label: 'Home', icon: 'home' },
     { to: '/app/employees', end: false, label: 'Employees', icon: 'people' },
+    { to: '/app/attendance', end: false, label: 'Attendance', icon: 'attendance' },
+    { to: '/app/attendance-approvals', end: false, label: 'Attendance approvals', icon: 'attendance' },
+    { to: '/app/leave-approvals', end: false, label: 'Leave approvals', icon: 'leave' },
     { to: '/app/setup', end: false, label: 'Organization setup', icon: 'setup' },
     ...(org?.can_edit
       ? [{ to: '/app/organization', end: false, label: 'Organization', icon: 'org' }]

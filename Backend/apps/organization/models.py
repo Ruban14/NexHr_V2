@@ -43,6 +43,10 @@ class Organization(UUIDModel, TimeStampedModel, AuditedModel):
     city = models.CharField(max_length=100, blank=True)
     timezone = models.CharField(max_length=64, default='Asia/Kolkata')
     currency = models.CharField(max_length=3, default='INR')
+    notice_period_days = models.PositiveIntegerField(
+        default=30,
+        help_text='Default notice period duration in days used to calculate exit date.',
+    )
     is_active = models.BooleanField(default=True, db_index=True)
     owner = models.ForeignKey(settings.AUTH_USER_MODEL,on_delete=models.CASCADE,related_name='owned_organizations')
 
@@ -485,6 +489,14 @@ class Employee(UUIDModel, TimeStampedModel, AuditedModel):
         blank=True,
         related_name='employees',
     )
+    reporting_manager = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='direct_reports',
+        help_text='Manager who approves leave and similar requests for this employee.',
+    )
     joining_date = models.DateField(null=True, blank=True)
     exit_date = models.DateField(null=True, blank=True)
     is_active = models.BooleanField(default=True, db_index=True)
@@ -685,3 +697,955 @@ class EmployeeLifecycleHistory(UUIDModel, TimeStampedModel):
     def delete(self, using=None, keep_parents=False):
         raise PermissionError('Lifecycle history is immutable and cannot be deleted.')
 
+
+class DocumentCategory(UUIDModel, TimeStampedModel, AuditedModel):
+    """Master document categories."""
+
+    name = models.CharField(max_length=100, unique=True)
+    description = models.TextField(blank=True)
+
+    display_order = models.PositiveIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "document_categories"
+        ordering = ["display_order", "name"]
+
+    def __str__(self):
+        return self.name
+
+
+class DocumentDefinition(UUIDModel, TimeStampedModel, AuditedModel):
+    """Defines available document types."""
+
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="document_definitions",
+        null=True,
+        blank=True,
+    )
+
+    category = models.ForeignKey(
+        DocumentCategory,
+        on_delete=models.PROTECT,
+        related_name="documents",
+    )
+
+    name = models.CharField(max_length=150)
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "document_definitions"
+        ordering = ["category", "name"]
+        unique_together = ("organization", "category", "name")
+
+    def __str__(self):
+        return self.name
+
+
+class DocumentPolicy(UUIDModel, TimeStampedModel, AuditedModel):
+    """Document policy for an employee type."""
+
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="document_policies",
+    )
+
+    employee_type = models.ForeignKey(
+        EmployeeType,
+        on_delete=models.PROTECT,
+        related_name="document_policies",
+    )
+
+    name = models.CharField(max_length=150)
+    description = models.TextField(blank=True)
+
+    is_default = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "document_policies"
+        ordering = ["name"]
+        unique_together = ("organization", "employee_type", "name")
+
+    def __str__(self):
+        return self.name
+
+
+class DocumentPolicyItem(UUIDModel, TimeStampedModel, AuditedModel):
+    """Documents required under a policy."""
+
+    policy = models.ForeignKey(
+        DocumentPolicy,
+        on_delete=models.CASCADE,
+        related_name="items",
+    )
+
+    document = models.ForeignKey(
+        DocumentDefinition,
+        on_delete=models.PROTECT,
+        related_name="policy_items",
+    )
+
+    display_order = models.PositiveIntegerField(default=0)
+
+    is_required = models.BooleanField(default=True)
+    allow_multiple = models.BooleanField(default=False)
+    verification_required = models.BooleanField(default=True)
+    requires_expiry = models.BooleanField(default=False)
+
+    class Meta:
+        db_table = "document_policy_items"
+        ordering = ["display_order", "id"]
+        unique_together = ("policy", "document")
+
+    def __str__(self):
+        return f"{self.policy.name} - {self.document.name}"
+
+
+class File(UUIDModel, TimeStampedModel, AuditedModel):
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="files",
+    )
+    file = models.FileField(upload_to="documents/%Y/%m/")
+    original_name = models.CharField(max_length=255)
+    extension = models.CharField(max_length=20)
+    mime_type = models.CharField(max_length=100)
+    file_size = models.BigIntegerField()
+    checksum = models.CharField(
+        max_length=64,
+        blank=True,
+    )
+    is_active = models.BooleanField(default=True)
+    is_deleted = models.BooleanField(default=False)
+
+    class Meta:
+        db_table = "files"
+
+    def __str__(self):
+        return self.original_name
+
+
+class EmployeeDocument(UUIDModel, TimeStampedModel, AuditedModel):
+    class Status(models.TextChoices):
+        PENDING = 'pending', 'Pending approval'
+        APPROVED = 'approved', 'Approved'
+        REJECTED = 'rejected', 'Rejected'
+
+    employee = models.ForeignKey(
+        Employee,
+        on_delete=models.CASCADE,
+        related_name="documents",
+    )
+
+    document = models.ForeignKey(
+        DocumentDefinition,
+        on_delete=models.PROTECT,
+        related_name="employee_documents",
+    )
+
+    file = models.ForeignKey(
+        File,
+        on_delete=models.CASCADE,
+        related_name="employee_documents",
+    )
+
+    issue_date = models.DateField(
+        null=True,
+        blank=True,
+    )
+
+    expiry_date = models.DateField(
+        null=True,
+        blank=True,
+    )
+
+    status = models.CharField(
+        max_length=30,
+        choices=Status.choices,
+        default=Status.PENDING,
+        db_index=True,
+    )
+
+    remarks = models.TextField(blank=True)
+
+    verified_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="verified_documents",
+    )
+
+    verified_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
+    class Meta:
+        db_table = "employee_documents"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.employee_id} · {self.document_id} · {self.status}'
+
+
+class EmployeeTaxDetail(UUIDModel, TimeStampedModel, AuditedModel):
+    """Employee tax information."""
+
+    class TaxRegime(models.TextChoices):
+        OLD = 'old', 'Old Regime'
+        NEW = 'new', 'New Regime'
+
+    employee = models.OneToOneField(
+        Employee,
+        on_delete=models.CASCADE,
+        related_name='tax_detail',
+    )
+
+    pan_number = models.CharField(max_length=20, blank=True)
+    aadhaar_number = models.CharField(max_length=20, blank=True)
+    uan_number = models.CharField(max_length=30, blank=True)
+    pf_number = models.CharField(max_length=50, blank=True)
+    esi_number = models.CharField(max_length=50, blank=True)
+
+    tax_regime = models.CharField(
+        max_length=20,
+        choices=TaxRegime.choices,
+        default=TaxRegime.NEW,
+    )
+
+    tax_identification_number = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text='TIN / SSN / National Tax ID based on country.',
+    )
+
+    is_pf_applicable = models.BooleanField(default=True)
+    is_esi_applicable = models.BooleanField(default=False)
+    professional_tax_applicable = models.BooleanField(default=False)
+    labour_welfare_fund_applicable = models.BooleanField(default=False)
+
+    class Meta:
+        db_table = 'employee_tax_details'
+
+    def __str__(self):
+        return f'{self.employee_id} - Tax Details'
+
+
+class AssetType(UUIDModel, TimeStampedModel, AuditedModel):
+    """Master list of asset types."""
+
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="asset_types",
+    )
+
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "asset_types"
+        ordering = ["name"]
+        unique_together = ("organization", "name")
+
+    def __str__(self):
+        return self.name
+
+
+class Asset(UUIDModel, TimeStampedModel, AuditedModel):
+    """Physical or logical asset owned by an organization."""
+
+    class Status(models.TextChoices):
+        AVAILABLE = "available", "Available"
+        ASSIGNED = "assigned", "Assigned"
+        LOST = "lost", "Lost"
+        DAMAGED = "damaged", "Damaged"
+        RETIRED = "retired", "Retired"
+
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="assets",
+    )
+
+    asset_type = models.ForeignKey(
+        AssetType,
+        on_delete=models.PROTECT,
+        related_name="assets",
+    )
+
+    asset_code = models.CharField(
+        max_length=50,
+        help_text="Unique organization asset code.",
+    )
+
+    name = models.CharField(
+        max_length=150,
+        help_text="Example: Dell Latitude 5440",
+    )
+
+    brand = models.CharField(
+        max_length=100,
+        blank=True,
+    )
+
+    model = models.CharField(
+        max_length=100,
+        blank=True,
+    )
+
+    serial_number = models.CharField(
+        max_length=100,
+        blank=True,
+    )
+
+    purchase_date = models.DateField(
+        null=True,
+        blank=True,
+    )
+
+    warranty_expiry = models.DateField(
+        null=True,
+        blank=True,
+    )
+
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.AVAILABLE,
+    )
+    remarks = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = "assets"
+        ordering = ["asset_code"]
+        unique_together = (
+            "organization",
+            "asset_code",
+        )
+
+    def __str__(self):
+        return self.asset_code
+
+
+class EmployeeAssetAssignment(UUIDModel, TimeStampedModel, AuditedModel):
+    """History of asset assignments."""
+
+    class Status(models.TextChoices):
+        ACTIVE = "active", "Active"
+        RETURNED = "returned", "Returned"
+        LOST = "lost", "Lost"
+
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="asset_assignments",
+    )
+
+    employee = models.ForeignKey(
+        Employee,
+        on_delete=models.CASCADE,
+        related_name="asset_assignments",
+    )
+
+    asset = models.ForeignKey(
+        Asset,
+        on_delete=models.PROTECT,
+        related_name="assignments",
+    )
+
+    assigned_at = models.DateField()
+
+    expected_return_at = models.DateField(
+        null=True,
+        blank=True,
+    )
+
+    returned_at = models.DateField(
+        null=True,
+        blank=True,
+    )
+
+    issued_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="issued_assets",
+    )
+
+    received_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="received_assets",
+    )
+
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.ACTIVE,
+    )
+
+    remarks = models.TextField(blank=True)
+
+    class Meta:
+        db_table = "employee_asset_assignments"
+        ordering = ["-assigned_at"]
+        indexes = [
+            models.Index(fields=["organization", "employee"]),
+            models.Index(fields=["asset"]),
+            models.Index(fields=["status"]),
+        ]
+
+    def __str__(self):
+        return f"{self.asset.asset_code} -> {self.employee}"
+
+
+class LeavePolicy(UUIDModel, TimeStampedModel, AuditedModel):
+    """Leave policy assigned to an employee type."""
+
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="leave_policies",
+    )
+
+    employee_type = models.ForeignKey(
+        EmployeeType,
+        on_delete=models.PROTECT,
+        related_name="leave_policies",
+    )
+
+    code = models.CharField(
+        max_length=30,
+    )
+
+    name = models.CharField(
+        max_length=150,
+    )
+
+    description = models.TextField(
+        blank=True,
+    )
+
+    effective_from = models.DateField()
+
+    effective_to = models.DateField(
+        null=True,
+        blank=True,
+    )
+
+    is_default = models.BooleanField(
+        default=False,
+    )
+
+    is_active = models.BooleanField(
+        default=True,
+    )
+
+    class Meta:
+        db_table = "leave_policies"
+        ordering = ["name"]
+        unique_together = (
+            "organization",
+            "code",
+        )
+
+    def __str__(self):
+        return self.name
+
+
+class LeavePolicyRule(UUIDModel, TimeStampedModel, AuditedModel):
+    """Leave entitlement rule."""
+
+    class AllocationFrequency(models.TextChoices):
+        YEARLY = "yearly", "Yearly"
+        MONTHLY = "monthly", "Monthly"
+        QUARTERLY = "quarterly", "Quarterly"
+
+    policy = models.ForeignKey(
+        LeavePolicy,
+        on_delete=models.CASCADE,
+        related_name="rules",
+    )
+
+    leave_type = models.ForeignKey(
+        LeaveType,
+        on_delete=models.PROTECT,
+        related_name="policy_rules",
+    )
+
+    allocation_frequency = models.CharField(
+        max_length=20,
+        choices=AllocationFrequency.choices,
+        default=AllocationFrequency.YEARLY,
+    )
+
+    allocation_quantity = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=0,
+        help_text="Quantity allocated every allocation frequency.",
+    )
+
+    annual_limit = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=0,
+        help_text="Maximum leave that can be allocated in a leave year.",
+    )
+
+    carry_forward_allowed = models.BooleanField(
+        default=False,
+    )
+
+    carry_forward_limit = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=0,
+    )
+
+    encashment_allowed = models.BooleanField(
+        default=False,
+    )
+
+    encashment_limit = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=0,
+    )
+
+    allow_half_day = models.BooleanField(
+        default=False,
+    )
+
+    allow_negative_balance = models.BooleanField(
+        default=False,
+    )
+
+    minimum_service_days = models.PositiveIntegerField(
+        default=0,
+    )
+
+    maximum_consecutive_days = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+    )
+
+    is_active = models.BooleanField(
+        default=True,
+    )
+
+    class Meta:
+        db_table = "leave_policy_rules"
+        unique_together = (
+            "policy",
+            "leave_type",
+        )
+
+    def __str__(self):
+        return f"{self.policy.name} - {self.leave_type.name}"
+
+
+class EmployeeLeaveBalance(UUIDModel, TimeStampedModel, AuditedModel):
+    """Stores current leave balance of an employee."""
+
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="employee_leave_balances",
+    )
+
+    employee = models.ForeignKey(
+        Employee,
+        on_delete=models.CASCADE,
+        related_name="leave_balances",
+    )
+
+    leave_type = models.ForeignKey(
+        LeaveType,
+        on_delete=models.PROTECT,
+        related_name="employee_balances",
+    )
+
+    allocated = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=0,
+    )
+
+    used = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=0,
+    )
+
+    balance = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=0,
+    )
+
+    class Meta:
+        db_table = "employee_leave_balances"
+        unique_together = (
+            "employee",
+            "leave_type",
+        )
+
+    def __str__(self):
+        return f"{self.employee} - {self.leave_type}"
+
+
+class LeaveApplication(UUIDModel, TimeStampedModel, AuditedModel):
+    """Employee leave request."""
+
+    class Status(models.TextChoices):
+        DRAFT = "draft", "Draft"
+        PENDING = "pending", "Pending"
+        APPROVED = "approved", "Approved"
+        REJECTED = "rejected", "Rejected"
+        CANCELLED = "cancelled", "Cancelled"
+
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="leave_applications",
+    )
+
+    employee = models.ForeignKey(
+        Employee,
+        on_delete=models.CASCADE,
+        related_name="leave_applications",
+    )
+
+    leave_type = models.ForeignKey(
+        LeaveType,
+        on_delete=models.PROTECT,
+        related_name="applications",
+    )
+
+    from_date = models.DateField()
+
+    to_date = models.DateField()
+
+    number_of_days = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+    )
+
+    is_half_day = models.BooleanField(
+        default=False,
+    )
+
+    reason = models.TextField()
+
+    attachment = models.FileField(
+        upload_to="leave_attachments/",
+        null=True,
+        blank=True,
+    )
+
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.PENDING,
+    )
+
+    approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="approved_leaves",
+    )
+
+    approved_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
+    remarks = models.TextField(
+        blank=True,
+    )
+
+    class Meta:
+        db_table = "leave_applications"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.employee} - {self.leave_type}"
+
+
+class EmployeeLeaveLog(UUIDModel, TimeStampedModel, AuditedModel):
+    """Audit log for every leave balance change."""
+
+    class TransactionType(models.TextChoices):
+        ALLOCATION = "allocation", "Allocation"
+        LEAVE_APPROVED = "leave_approved", "Leave Approved"
+        LEAVE_CANCELLED = "leave_cancelled", "Leave Cancelled"
+        ADJUSTMENT = "adjustment", "Adjustment"
+        CARRY_FORWARD = "carry_forward", "Carry Forward"
+
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="leave_logs",
+    )
+
+    employee = models.ForeignKey(
+        Employee,
+        on_delete=models.CASCADE,
+        related_name="leave_logs",
+    )
+
+    leave_type = models.ForeignKey(
+        LeaveType,
+        on_delete=models.PROTECT,
+        related_name="leave_logs",
+    )
+
+    transaction_type = models.CharField(
+        max_length=30,
+        choices=TransactionType.choices,
+    )
+
+    quantity = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+    )
+
+    balance_before = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+    )
+
+    balance_after = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+    )
+
+    leave_application = models.ForeignKey(
+        LeaveApplication,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="logs",
+    )
+
+    remarks = models.TextField(
+        blank=True,
+    )
+
+    class Meta:
+        db_table = "employee_leave_logs"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.employee} - {self.transaction_type}"
+
+
+class Attendance(UUIDModel, TimeStampedModel, AuditedModel):
+    """Daily attendance summary."""
+
+    class Status(models.TextChoices):
+        PRESENT = "present", "Present"
+        ABSENT = "absent", "Absent"
+        HALF_DAY = "half_day", "Half Day"
+        LEAVE = "leave", "Leave"
+        HOLIDAY = "holiday", "Holiday"
+        WEEK_OFF = "week_off", "Week Off"
+
+    class ApprovalStatus(models.TextChoices):
+        NOT_REQUIRED = "not_required", "Not required"
+        PENDING = "pending", "Pending"
+        APPROVED = "approved", "Approved"
+        REJECTED = "rejected", "Rejected"
+
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="attendances",
+    )
+
+    employee = models.ForeignKey(
+        Employee,
+        on_delete=models.CASCADE,
+        related_name="attendances",
+    )
+
+    attendance_date = models.DateField()
+
+    first_check_in = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
+    last_check_out = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
+    total_worked_hours = models.DurationField(
+        null=True,
+        blank=True,
+    )
+
+    total_break_hours = models.DurationField(
+        null=True,
+        blank=True,
+    )
+
+    overtime_hours = models.DurationField(
+        null=True,
+        blank=True,
+    )
+
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.PRESENT,
+    )
+
+    is_manual = models.BooleanField(
+        default=False,
+        help_text='True when this day includes a manual entry pending or reviewed by a manager.',
+    )
+
+    approval_status = models.CharField(
+        max_length=20,
+        choices=ApprovalStatus.choices,
+        default=ApprovalStatus.NOT_REQUIRED,
+        db_index=True,
+    )
+
+    approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='approved_attendances',
+    )
+
+    approved_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
+    approval_remarks = models.TextField(
+        blank=True,
+    )
+
+    remarks = models.TextField(
+        blank=True,
+    )
+
+    class Meta:
+        db_table = "attendances"
+        ordering = ["-attendance_date"]
+        unique_together = (
+            "employee",
+            "attendance_date",
+        )
+
+    def __str__(self):
+        return f"{self.employee} - {self.attendance_date}"
+
+
+class AttendanceSession(UUIDModel, TimeStampedModel, AuditedModel):
+    """Each check-in/check-out session."""
+
+    class Source(models.TextChoices):
+        WEB = "web", "Web"
+        MOBILE = "mobile", "Mobile"
+        BIOMETRIC = "biometric", "Biometric"
+        RFID = "rfid", "RFID"
+        MANUAL = "manual", "Manual"
+        API = "api", "API"
+
+    attendance = models.ForeignKey(
+        Attendance,
+        on_delete=models.CASCADE,
+        related_name="sessions",
+    )
+
+    check_in = models.DateTimeField()
+
+    check_out = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
+    worked_hours = models.DurationField(
+        null=True,
+        blank=True,
+    )
+
+    source = models.CharField(
+        max_length=20,
+        choices=Source.choices,
+        default=Source.WEB,
+    )
+
+    remarks = models.CharField(
+        max_length=255,
+        blank=True,
+    )
+
+    class Meta:
+        db_table = "attendance_sessions"
+        ordering = ["check_in"]
+
+    def __str__(self):
+        return (
+            f"{self.attendance.employee} "
+            f"- Session"
+        )
+
+
+class AttendanceBreak(UUIDModel, TimeStampedModel, AuditedModel):
+    """Breaks taken during a session."""
+
+    session = models.ForeignKey(
+        AttendanceSession,
+        on_delete=models.CASCADE,
+        related_name="breaks",
+    )
+
+    break_start = models.DateTimeField()
+
+    break_end = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
+    break_duration = models.DurationField(
+        null=True,
+        blank=True,
+    )
+
+    remarks = models.CharField(
+        max_length=255,
+        blank=True,
+    )
+
+    class Meta:
+        db_table = "attendance_breaks"
+        ordering = ["break_start"]
+
+    def __str__(self):
+        return (
+            f"{self.session.attendance.employee} "
+            f"- Break"
+        )

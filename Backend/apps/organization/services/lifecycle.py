@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import re
 import uuid
+from datetime import date, timedelta
 from uuid import UUID
 
 from django.db import transaction
+from django.utils import timezone
 
 from apps.authentication.models import User
 from apps.core.exceptions import (
@@ -23,6 +25,7 @@ from apps.organization.models import (
     EmployeeLifecycleHistory,
     EmployeeLifecycleStatus,
     EmployeeLifecycleTransition,
+    EmployeeTaxDetail,
     Organization,
     OrganizationMembership,
 )
@@ -109,6 +112,7 @@ class EmployeeLifecycleEngine:
         to_status: EmployeeLifecycleStatus,
         changed_by: User | None,
         remarks: str = '',
+        exit_date: date | None = None,
     ) -> Employee:
         from_status = employee.lifecycle_status
         transition = cls.find_transition(from_status=from_status, to_status=to_status)
@@ -123,9 +127,28 @@ class EmployeeLifecycleEngine:
                 },
             )
 
+        update_fields = ['lifecycle_status', 'updated_by', 'updated_at']
         employee.lifecycle_status = to_status
         employee.updated_by = changed_by
-        employee.save(update_fields=['lifecycle_status', 'updated_by', 'updated_at'])
+
+        if to_status.key == 'notice_period':
+            resolved_exit = exit_date
+            if resolved_exit is None:
+                days = getattr(employee.organization, 'notice_period_days', None) or 0
+                if days < 1:
+                    raise ValidationServiceError(
+                        'Exit date is required when organization notice period days is not configured.',
+                        code='exit_date_required',
+                    )
+                resolved_exit = timezone.localdate() + timedelta(days=days)
+            employee.exit_date = resolved_exit
+            update_fields.append('exit_date')
+        elif to_status.key == 'released':
+            resolved_exit = exit_date or employee.exit_date or timezone.localdate()
+            employee.exit_date = resolved_exit
+            update_fields.append('exit_date')
+
+        employee.save(update_fields=update_fields)
 
         EmployeeLifecycleHistory.objects.create(
             employee=employee,
@@ -230,6 +253,104 @@ class EmployeeService:
         }
 
     @classmethod
+    def serialize_tax_detail(cls, detail: EmployeeTaxDetail | None) -> dict:
+        if detail is None:
+            return {
+                'pan_number': '',
+                'aadhaar_number': '',
+                'uan_number': '',
+                'pf_number': '',
+                'esi_number': '',
+                'tax_regime': EmployeeTaxDetail.TaxRegime.NEW,
+                'tax_identification_number': '',
+                'is_pf_applicable': True,
+                'is_esi_applicable': False,
+                'professional_tax_applicable': False,
+                'labour_welfare_fund_applicable': False,
+            }
+        return {
+            'id': str(detail.id),
+            'pan_number': detail.pan_number,
+            'aadhaar_number': detail.aadhaar_number,
+            'uan_number': detail.uan_number,
+            'pf_number': detail.pf_number,
+            'esi_number': detail.esi_number,
+            'tax_regime': detail.tax_regime,
+            'tax_identification_number': detail.tax_identification_number,
+            'is_pf_applicable': detail.is_pf_applicable,
+            'is_esi_applicable': detail.is_esi_applicable,
+            'professional_tax_applicable': detail.professional_tax_applicable,
+            'labour_welfare_fund_applicable': detail.labour_welfare_fund_applicable,
+        }
+
+    @classmethod
+    def upsert_tax_detail(cls, *, employee: Employee, payload: dict, user: User) -> EmployeeTaxDetail:
+        detail, _created = EmployeeTaxDetail.objects.get_or_create(
+            employee=employee,
+            defaults={'created_by': user, 'updated_by': user},
+        )
+        string_fields = (
+            'pan_number',
+            'aadhaar_number',
+            'uan_number',
+            'pf_number',
+            'esi_number',
+            'tax_identification_number',
+        )
+        for field in string_fields:
+            if field in payload and payload[field] is not None:
+                value = str(payload[field]).strip()
+                if field == 'pan_number':
+                    value = value.upper().replace(' ', '')
+                if field == 'aadhaar_number':
+                    value = ''.join(ch for ch in value if ch.isdigit())
+                setattr(detail, field, value)
+
+        if 'tax_regime' in payload and payload['tax_regime'] is not None:
+            regime = str(payload['tax_regime']).strip().lower()
+            if regime not in {EmployeeTaxDetail.TaxRegime.OLD, EmployeeTaxDetail.TaxRegime.NEW}:
+                raise ValidationServiceError(
+                    'Tax regime must be old or new.',
+                    code='invalid_tax_regime',
+                    details={'tax_regime': ['Select Old Regime or New Regime.']},
+                )
+            detail.tax_regime = regime
+
+        bool_fields = (
+            'is_pf_applicable',
+            'is_esi_applicable',
+            'professional_tax_applicable',
+            'labour_welfare_fund_applicable',
+        )
+        for field in bool_fields:
+            if field in payload and payload[field] is not None:
+                value = payload[field]
+                if isinstance(value, str):
+                    value = value.strip().lower() in {'1', 'true', 'yes', 'on'}
+                setattr(detail, field, bool(value))
+
+        pan = detail.pan_number
+        if pan and not re.fullmatch(r'^[A-Z]{5}[0-9]{4}[A-Z]$', pan):
+            raise ValidationServiceError(
+                'Enter a valid PAN (e.g. ABCDE1234F).',
+                code='invalid_pan',
+                details={'tax_detail.pan_number': ['Enter a valid PAN (e.g. ABCDE1234F).']},
+            )
+        aadhaar = detail.aadhaar_number
+        if aadhaar and not re.fullmatch(r'^\d{12}$', aadhaar):
+            raise ValidationServiceError(
+                'Enter a valid 12-digit Aadhaar number.',
+                code='invalid_aadhaar',
+                details={'tax_detail.aadhaar_number': ['Enter a valid 12-digit Aadhaar number.']},
+            )
+
+        detail.updated_by = user
+        if not detail.created_by_id:
+            detail.created_by = user
+        detail.save()
+        return detail
+
+    @classmethod
     def replace_bank_details(cls, *, employee: Employee, rows: list, user: User) -> None:
         employee.bank_details.all().delete()
         if not rows:
@@ -313,6 +434,7 @@ class EmployeeService:
             'job_experiences': [
                 cls.serialize_job_experience(row) for row in employee.job_experiences.all()
             ],
+            'tax_detail': cls.serialize_tax_detail(getattr(employee, 'tax_detail', None)),
             'date_of_birth': employee.date_of_birth.isoformat() if employee.date_of_birth else None,
             'gender': employee.gender,
             'blood_group': employee.blood_group,
@@ -328,6 +450,25 @@ class EmployeeService:
             'is_active': employee.is_active,
             'designation_id': str(employee.designation_id) if employee.designation_id else None,
             'designation_name': employee.designation.name if employee.designation_id else None,
+            'reporting_manager_id': (
+                str(employee.reporting_manager_id) if employee.reporting_manager_id else None
+            ),
+            'reporting_manager_name': (
+                (
+                    employee.reporting_manager.display_name
+                    or ' '.join(
+                        part
+                        for part in [
+                            employee.reporting_manager.first_name,
+                            employee.reporting_manager.last_name,
+                        ]
+                        if part
+                    ).strip()
+                    or employee.reporting_manager.email
+                )
+                if employee.reporting_manager_id
+                else None
+            ),
             'employee_type_id': str(employee.employee_type_id) if employee.employee_type_id else None,
             'employee_type_name': employee.employee_type.name if employee.employee_type_id else None,
             'access_type_id': str(employee.access_type_id) if employee.access_type_id else None,
@@ -391,7 +532,9 @@ class EmployeeService:
                 'designation',
                 'employee_type',
                 'access_type',
+                'reporting_manager',
                 'user',
+                'tax_detail',
             )
             .prefetch_related('bank_details', 'education_details', 'job_experiences')
             .filter(id=employee_id, organization=organization)
@@ -719,6 +862,42 @@ class EmployeeService:
             if field in payload:
                 setattr(employee, attr, payload[field] or None)
 
+        if 'reporting_manager_id' in payload:
+            manager_id = payload.get('reporting_manager_id') or None
+            if manager_id:
+                if str(manager_id) == str(employee.id):
+                    raise ValidationServiceError(
+                        'An employee cannot report to themselves.',
+                        code='invalid_reporting_manager',
+                        details={'reporting_manager_id': ['Select a different employee.']},
+                    )
+                manager = Employee.objects.filter(
+                    id=manager_id,
+                    organization_id=employee.organization_id,
+                    is_active=True,
+                ).first()
+                if manager is None:
+                    raise NotFoundServiceError(
+                        'Reporting manager not found in this organization.',
+                        code='reporting_manager_not_found',
+                        details={'reporting_manager_id': ['Select a valid employee.']},
+                    )
+                # Prevent cycles: manager (or anyone above) must not already report to employee.
+                cursor = manager
+                seen = {employee.id}
+                while cursor is not None:
+                    if cursor.id in seen:
+                        raise ValidationServiceError(
+                            'This reporting manager would create a circular hierarchy.',
+                            code='reporting_manager_cycle',
+                            details={'reporting_manager_id': ['Choose a manager outside this chain.']},
+                        )
+                    seen.add(cursor.id)
+                    cursor = cursor.reporting_manager
+                employee.reporting_manager = manager
+            else:
+                employee.reporting_manager = None
+
         if not employee.display_name:
             employee.display_name = ' '.join(
                 part for part in [employee.first_name, employee.last_name] if part
@@ -735,6 +914,8 @@ class EmployeeService:
             cls.replace_education_details(employee=employee, rows=payload['education_details'], user=user)
         if 'job_experiences' in payload and payload['job_experiences'] is not None:
             cls.replace_job_experiences(employee=employee, rows=payload['job_experiences'], user=user)
+        if 'tax_detail' in payload and payload['tax_detail'] is not None:
+            cls.upsert_tax_detail(employee=employee, payload=payload['tax_detail'], user=user)
 
         linked_user = employee.user
         if linked_user is not None:
@@ -774,10 +955,11 @@ class EmployeeService:
         employee_id: str | UUID,
         to_status_id: str | UUID,
         remarks: str = '',
+        exit_date: date | None = None,
     ) -> dict:
         membership = cls.require_admin(user, branch_id)
         employee = (
-            Employee.objects.select_related('lifecycle_status')
+            Employee.objects.select_related('lifecycle_status', 'organization')
             .filter(id=employee_id, organization=membership.branch.organization)
             .first()
         )
@@ -793,6 +975,7 @@ class EmployeeService:
             to_status=to_status,
             changed_by=user,
             remarks=remarks,
+            exit_date=exit_date,
         )
         employee.refresh_from_db()
         return cls.get_employee(user=user, branch_id=branch_id, employee_id=employee.id)

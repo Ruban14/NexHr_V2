@@ -1,0 +1,356 @@
+.leave-policy-builder {
+  min-width: 0;
+  display: grid;
+  gap: 1rem;
+}
+
+.leave-policy-builder__back {
+  color: var(--color-text-secondary);
+  text-decoration: none;
+  font-size: 0.85rem;
+}
+
+.leave-policy-builder__back:hover {
+  color: var(--color-brand-600);
+}
+
+.leave-policy-builder__actions {
+  display: inline-flex;
+  gap: 0.5rem;
+}
+
+.leave-policy-builder__banner {
+  margin: 0;
+  padding: 0.7rem 0.85rem;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-danger-600) 12%, transparent);
+  color: var(--color-danger-600);
+  font-size: 0.86rem;
+}
+
+.leave-policy-builder__layout {
+  display: grid;
+  gap: 1rem;
+}
+
+.leave-policy-builder__meta,
+.leave-policy-builder__rules {
+  padding: 1.1rem 1.15rem;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-card, var(--color-surface));
+}
+
+.leave-policy-builder__meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem 1rem;
+}
+
+.leave-policy-builder__meta-head {
+  grid-column: 1 / -1;
+  margin-bottom: 0.15rem;
+}
+
+.leave-policy-builder__meta-head h3,
+.leave-policy-builder__rules-head h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.leave-policy-builder__meta-head p,
+.leave-policy-builder__rules-head p {
+  margin: 0.25rem 0 0;
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+}
+
+.leave-policy-field {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.leave-policy-field--wide {
+  grid-column: 1 / -1;
+}
+
+.leave-policy-field > span {
+  font-size: 0.82rem;
+  font-weight: 550;
+  color: var(--color-text-secondary);
+}
+
+.leave-policy-field > span small {
+  font-weight: 400;
+  color: var(--color-text-muted);
+}
+
+.leave-policy-field input,
+.leave-policy-field select,
+.leave-policy-field textarea {
+  width: 100%;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--color-border, var(--color-border-subtle));
+  border-radius: var(--radius-md);
+  background: var(--color-surface-input, var(--color-surface));
+  color: var(--color-text-primary);
+  outline: none;
+  font: inherit;
+}
+
+.leave-policy-field input:focus,
+.leave-policy-field select:focus,
+.leave-policy-field textarea:focus {
+  border-color: var(--color-focus-ring, var(--color-brand-500));
+}
+
+.leave-policy-field em {
+  font-style: normal;
+  font-size: 0.78rem;
+  color: var(--color-danger-600);
+}
+
+.leave-policy-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.86rem;
+}
+
+.leave-policy-builder__rules-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.leave-policy-builder__count {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-text-muted) 12%, transparent);
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.leave-policy-builder__catalog {
+  display: grid;
+  gap: 0.55rem;
+  margin-bottom: 1rem;
+  padding: 0.85rem 0.95rem;
+  border: 1px dashed var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-bg, #fff) 70%, transparent);
+}
+
+.leave-policy-builder__catalog > span {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.leave-policy-builder__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.leave-policy-chip {
+  appearance: none;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  padding: 0.4rem 0.75rem;
+  font: inherit;
+  font-size: 0.84rem;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.leave-policy-chip:hover {
+  border-color: var(--color-brand-500);
+  background: color-mix(in srgb, var(--color-brand-500) 8%, transparent);
+}
+
+.leave-policy-builder__hint {
+  margin: 0 0 1rem;
+  font-size: 0.86rem;
+  color: var(--color-text-muted);
+}
+
+.leave-policy-builder__empty {
+  display: grid;
+  gap: 0.35rem;
+  padding: 1.25rem 1rem;
+  text-align: center;
+  border: 1px dashed var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+}
+
+.leave-policy-builder__empty strong {
+  color: var(--color-text-primary);
+  font-size: 0.95rem;
+}
+
+.leave-policy-builder__empty p {
+  margin: 0;
+  font-size: 0.86rem;
+}
+
+.leave-policy-builder__empty a {
+  color: var(--color-brand-700, var(--color-brand-600));
+  font-size: 0.86rem;
+}
+
+.leave-policy-rule-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.9rem;
+}
+
+.leave-policy-rule {
+  padding: 1rem 1.05rem;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--color-surface) 88%, var(--color-bg, #fff));
+}
+
+.leave-policy-rule__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.85rem;
+}
+
+.leave-policy-rule__head strong {
+  display: block;
+  font-size: 1rem;
+}
+
+.leave-policy-rule__head p {
+  margin: 0.25rem 0 0;
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+}
+
+.leave-policy-mode {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin-bottom: 0.9rem;
+}
+
+.leave-policy-mode__btn {
+  appearance: none;
+  display: grid;
+  gap: 0.2rem;
+  text-align: left;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  font: inherit;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.leave-policy-mode__btn strong {
+  font-size: 0.88rem;
+}
+
+.leave-policy-mode__btn span {
+  font-size: 0.74rem;
+  color: var(--color-text-muted);
+  line-height: 1.35;
+}
+
+.leave-policy-mode__btn:hover {
+  border-color: color-mix(in srgb, var(--color-brand-500) 45%, var(--color-border-subtle));
+}
+
+.leave-policy-mode__btn.is-active {
+  border-color: var(--color-brand-500);
+  background: color-mix(in srgb, var(--color-brand-500) 10%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-brand-500) 35%, transparent);
+}
+
+.leave-policy-rule__essentials {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.leave-policy-rule__toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem 1.1rem;
+  margin-top: 0.9rem;
+  font-size: 0.84rem;
+}
+
+.leave-policy-rule__toggles label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.leave-policy-rule__toggles--advanced {
+  grid-column: 1 / -1;
+  margin-top: 0;
+}
+
+.leave-policy-rule__advanced-toggle {
+  appearance: none;
+  margin-top: 0.85rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-brand-700, var(--color-brand-600));
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 550;
+  cursor: pointer;
+}
+
+.leave-policy-rule__advanced {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.85rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+@media (max-width: 960px) {
+  .leave-policy-mode {
+    grid-template-columns: 1fr;
+  }
+
+  .leave-policy-rule__essentials,
+  .leave-policy-rule__advanced {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .leave-policy-builder__meta,
+  .leave-policy-rule__essentials,
+  .leave-policy-rule__advanced {
+    grid-template-columns: 1fr;
+  }
+
+  .leave-policy-builder__rules-head {
+    flex-direction: column;
+  }
+}

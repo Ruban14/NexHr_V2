@@ -1,5 +1,6 @@
 import {
   type ChangeEvent,
+  type CSSProperties,
   type FormEvent,
   useCallback,
   useEffect,
@@ -13,17 +14,25 @@ import { organizationApi } from '../../api/auth';
 import { extractErrorMessage, extractFieldErrors } from '../../api/client';
 import { tokenStorage } from '../../auth/tokenStorage';
 import { Button } from '../../components/Button';
+import { EmployeeDocumentsPanel } from '../../components/employees/EmployeeDocumentsPanel';
+import { EmployeeAssetsPanel } from '../../components/employees/EmployeeAssetsPanel';
+import { EmployeeAttendancePanel } from '../../components/employees/EmployeeAttendancePanel';
+import { EmployeeLeavesPanel } from '../../components/employees/EmployeeLeavesPanel';
 import { LoadingSkeleton } from '../../components/ui/LoadingSkeleton';
+import { Modal } from '../../components/ui/Modal';
 import { PageHeader } from '../../components/ui/PageHeader';
 import type {
   EmployeeBankDetail,
   EmployeeEducationDetail,
   EmployeeJobExperience,
   EmployeeRecord,
+  EmployeeTaxDetail,
   LifecycleHistoryEntry,
   LifecycleStatus,
+  LifecycleTransition,
 } from '../../types';
 import { getInitial } from '../../utils/initials';
+import { lifecycleStatusTone } from '../../utils/lifecycleStatus';
 import { useWorkspace } from '../../workspace/WorkspaceContext';
 import './EmployeesPage.css';
 
@@ -31,26 +40,170 @@ type DetailTab =
   | 'profile'
   | 'contact'
   | 'bank'
+  | 'tax'
   | 'education'
   | 'experience'
   | 'role'
   | 'documents'
+  | 'assets'
+  | 'attendance'
+  | 'timeline'
   | 'activities'
   | 'leaves';
 
-const TABS: { id: DetailTab; label: string }[] = [
-  { id: 'profile', label: 'Profile' },
-  { id: 'contact', label: 'Contact' },
-  { id: 'bank', label: 'Bank' },
-  { id: 'education', label: 'Education' },
-  { id: 'experience', label: 'Experience' },
-  { id: 'role', label: 'Role' },
-  { id: 'documents', label: 'Documents' },
-  { id: 'activities', label: 'Activities' },
-  { id: 'leaves', label: 'Leaves' },
+type EmpNavIconName =
+  | 'profile'
+  | 'contact'
+  | 'bank'
+  | 'tax'
+  | 'education'
+  | 'experience'
+  | 'role'
+  | 'documents'
+  | 'assets'
+  | 'attendance'
+  | 'timeline'
+  | 'activities'
+  | 'leaves';
+
+const TABS: { id: DetailTab; label: string; description: string; icon: EmpNavIconName }[] = [
+  { id: 'profile', label: 'Profile', description: 'Identity & personal', icon: 'profile' },
+  { id: 'contact', label: 'Contact', description: 'Phone & address', icon: 'contact' },
+  { id: 'bank', label: 'Bank', description: 'Salary accounts', icon: 'bank' },
+  { id: 'tax', label: 'Tax', description: 'PAN, PF & ESI', icon: 'tax' },
+  { id: 'education', label: 'Education', description: 'Degrees & schools', icon: 'education' },
+  { id: 'experience', label: 'Experience', description: 'Work history', icon: 'experience' },
+  { id: 'role', label: 'Role', description: 'Designation & access', icon: 'role' },
+  { id: 'documents', label: 'Documents', description: 'Uploads & checklist', icon: 'documents' },
+  { id: 'assets', label: 'Assets', description: 'Assign & revoke', icon: 'assets' },
+  { id: 'attendance', label: 'Attendance', description: 'Punches & hours', icon: 'attendance' },
+  { id: 'timeline', label: 'Timeline', description: 'Lifecycle journey', icon: 'timeline' },
+  { id: 'activities', label: 'Activities', description: 'Audit history', icon: 'activities' },
+  { id: 'leaves', label: 'Leaves', description: 'Balances & requests', icon: 'leaves' },
 ];
 
-const EDITABLE_TABS: DetailTab[] = ['profile', 'contact', 'bank', 'education', 'experience', 'role'];
+const NAV_GROUPS: { label: string; ids: DetailTab[] }[] = [
+  {
+    label: 'Details',
+    ids: ['profile', 'contact', 'bank', 'tax', 'education', 'experience', 'role'],
+  },
+  {
+    label: 'Workplace',
+    ids: ['documents', 'assets', 'attendance', 'timeline', 'activities', 'leaves'],
+  },
+];
+
+const TAB_BY_ID = Object.fromEntries(TABS.map((tab) => [tab.id, tab])) as Record<
+  DetailTab,
+  (typeof TABS)[number]
+>;
+
+function EmpProfileNavIcon({ name }: { name: EmpNavIconName }) {
+  const common = {
+    viewBox: '0 0 24 24',
+    width: 18,
+    height: 18,
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 1.8,
+    'aria-hidden': true as const,
+  };
+
+  switch (name) {
+    case 'profile':
+      return (
+        <svg {...common}>
+          <circle cx="12" cy="8" r="3.2" />
+          <path d="M5 19.5a7 7 0 0 1 14 0" />
+        </svg>
+      );
+    case 'contact':
+      return (
+        <svg {...common}>
+          <path d="M7 4.5h10a1.5 1.5 0 0 1 1.5 1.5v12a1.5 1.5 0 0 1-1.5 1.5H7A1.5 1.5 0 0 1 5.5 18V6A1.5 1.5 0 0 1 7 4.5z" />
+          <path d="M9 9h6M9 12.5h6M9 16h3.5" />
+        </svg>
+      );
+    case 'bank':
+      return (
+        <svg {...common}>
+          <path d="M4 10h16M5.5 10V18M18.5 10V18M4 18h16M12 5l8 5H4l8-5z" />
+        </svg>
+      );
+    case 'tax':
+      return (
+        <svg {...common}>
+          <rect x="4.5" y="5" width="15" height="14" rx="2" />
+          <path d="M8 9.5h8M8 13h5" />
+        </svg>
+      );
+    case 'education':
+      return (
+        <svg {...common}>
+          <path d="M3.5 10 12 5.5 20.5 10 12 14.5 3.5 10z" />
+          <path d="M7 12.2v4.3c0 .9 2.2 2.5 5 2.5s5-1.6 5-2.5v-4.3" />
+        </svg>
+      );
+    case 'experience':
+      return (
+        <svg {...common}>
+          <rect x="4" y="8" width="16" height="11" rx="2" />
+          <path d="M9 8V6.5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2V8" />
+        </svg>
+      );
+    case 'role':
+      return (
+        <svg {...common}>
+          <circle cx="12" cy="5" r="2.2" />
+          <circle cx="6" cy="18" r="2.2" />
+          <circle cx="18" cy="18" r="2.2" />
+          <path d="M12 7.2v4.3M12 11.5 6.8 16M12 11.5l5.2 4.5" />
+        </svg>
+      );
+    case 'documents':
+      return (
+        <svg {...common}>
+          <path d="M7 3.5h7.5L19 8v12.5a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z" />
+          <path d="M14 3.5V8h5M9 12h6M9 15.5h6" />
+        </svg>
+      );
+    case 'assets':
+      return (
+        <svg {...common}>
+          <rect x="3.5" y="7" width="17" height="12" rx="2" />
+          <path d="M8 7V5.5A1.5 1.5 0 0 1 9.5 4h5A1.5 1.5 0 0 1 16 5.5V7M8 12h8M8 15.5h5" />
+        </svg>
+      );
+    case 'attendance':
+      return (
+        <svg {...common}>
+          <circle cx="12" cy="12" r="8" />
+          <path d="M12 8v4l2.5 1.5" />
+        </svg>
+      );
+    case 'timeline':
+      return (
+        <svg {...common}>
+          <path d="M12 4v16" />
+          <circle cx="12" cy="6" r="2" />
+          <circle cx="12" cy="12" r="2" />
+          <circle cx="12" cy="18" r="2" />
+        </svg>
+      );
+    case 'activities':
+      return (
+        <svg {...common}>
+          <path d="M5 6.5h14M5 12h14M5 17.5h9" />
+        </svg>
+      );
+    case 'leaves':
+      return (
+        <svg {...common}>
+          <path d="M8 4h8a2 2 0 0 1 2 2v14l-6-3-6 3V6a2 2 0 0 1 2-2z" />
+        </svg>
+      );
+  }
+}
 
 const GENDERS = [
   { value: '', label: 'Select gender' },
@@ -88,6 +241,20 @@ const EMPTY_EXPERIENCE_ROW: EmployeeJobExperience = {
   description: '',
 };
 
+const EMPTY_TAX_DETAIL: EmployeeTaxDetail = {
+  pan_number: '',
+  aadhaar_number: '',
+  uan_number: '',
+  pf_number: '',
+  esi_number: '',
+  tax_regime: 'new',
+  tax_identification_number: '',
+  is_pf_applicable: true,
+  is_esi_applicable: false,
+  professional_tax_applicable: false,
+  labour_welfare_fund_applicable: false,
+};
+
 type EditFormState = {
   display_name: string;
   first_name: string;
@@ -102,6 +269,7 @@ type EditFormState = {
   bank_details: EmployeeBankDetail[];
   education_details: EmployeeEducationDetail[];
   job_experiences: EmployeeJobExperience[];
+  tax_detail: EmployeeTaxDetail;
   date_of_birth: string;
   gender: string;
   blood_group: string;
@@ -113,6 +281,7 @@ type EditFormState = {
   mother_language: string;
   languages_known: string;
   designation_id: string;
+  reporting_manager_id: string;
   employee_type_id: string;
   access_type_id: string;
   joining_date: string;
@@ -255,6 +424,19 @@ function Fact({ label, value }: { label: string; value: ReactNode }) {
   );
 }
 
+function FormSaveBar({ saving, onCancel }: { saving: boolean; onCancel: () => void }) {
+  return (
+    <div className="emp-profile__form-footer">
+      <Button type="button" variant="ghost" onClick={onCancel} disabled={saving}>
+        Cancel
+      </Button>
+      <Button type="submit" loading={saving}>
+        Save changes
+      </Button>
+    </div>
+  );
+}
+
 function toEditForm(employee: EmployeeRecord): EditFormState {
   return {
     display_name: employee.display_name || '',
@@ -270,6 +452,11 @@ function toEditForm(employee: EmployeeRecord): EditFormState {
     bank_details: employee.bank_details || [],
     education_details: employee.education_details || [],
     job_experiences: employee.job_experiences || [],
+    tax_detail: {
+      ...EMPTY_TAX_DETAIL,
+      ...(employee.tax_detail || {}),
+      tax_regime: employee.tax_detail?.tax_regime || 'new',
+    },
     date_of_birth: employee.date_of_birth || '',
     gender: employee.gender || '',
     blood_group: employee.blood_group || '',
@@ -281,6 +468,7 @@ function toEditForm(employee: EmployeeRecord): EditFormState {
     mother_language: employee.mother_language || '',
     languages_known: (employee.languages_known || []).join(', '),
     designation_id: employee.designation_id || '',
+    reporting_manager_id: employee.reporting_manager_id || '',
     employee_type_id: employee.employee_type_id || '',
     access_type_id: employee.access_type_id || '',
     joining_date: employee.joining_date || '',
@@ -293,16 +481,41 @@ function genderLabel(value?: string) {
   return GENDERS.find((item) => item.value === value)?.label || value || '—';
 }
 
+function bankInitials(name?: string) {
+  const parts = (name || '').trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return 'BA';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0] || ''}${parts[1][0] || ''}`.toUpperCase();
+}
+
+function maskAccountNumber(value?: string) {
+  const digits = (value || '').replace(/\s+/g, '');
+  if (!digits) return '—';
+  if (digits.length <= 4) return digits;
+  return `•••• ${digits.slice(-4)}`;
+}
+
+function formatAccountNumber(value?: string) {
+  const digits = (value || '').replace(/\s+/g, '');
+  if (!digits) return '—';
+  return digits.replace(/(\d{4})(?=\d)/g, '$1 ').trim();
+}
+
 export function EmployeeDetailPage() {
   const { employeeId = '' } = useParams();
-  const { currentBranch } = useWorkspace();
+  const { currentBranch, organization, profile } = useWorkspace();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [employee, setEmployee] = useState<EmployeeRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [pendingTransition, setPendingTransition] = useState<LifecycleTransition | null>(null);
+  const [transitionRemarks, setTransitionRemarks] = useState('');
+  const [transitionExitDate, setTransitionExitDate] = useState('');
   const [activeTab, setActiveTab] = useState<DetailTab>('profile');
   const [editing, setEditing] = useState(false);
+  const [taxRevealed, setTaxRevealed] = useState(false);
+  const [bankRevealed, setBankRevealed] = useState(false);
   const [editForm, setEditForm] = useState<EditFormState | null>(null);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
@@ -310,6 +523,7 @@ export function EmployeeDetailPage() {
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [managerOptions, setManagerOptions] = useState<EmployeeRecord[]>([]);
 
   const load = useCallback(async () => {
     const token = tokenStorage.getAccessToken();
@@ -333,7 +547,22 @@ export function EmployeeDetailPage() {
   }, [load, currentBranch?.branch_id]);
 
   useEffect(() => {
+    if (activeTab !== 'role' || !employeeId) return;
+    const token = tokenStorage.getAccessToken();
+    if (!token) return;
+    void organizationApi
+      .listEmployees(token, { page_size: 100 })
+      .then((data) => {
+        setManagerOptions(data.items.filter((row) => row.id !== employeeId && row.is_active));
+      })
+      .catch(() => {
+        setManagerOptions([]);
+      });
+  }, [activeTab, employeeId, currentBranch?.branch_id]);
+
+  useEffect(() => {
     setEditing(false);
+    setTaxRevealed(false);
     setSaveMessage(null);
     setFieldErrors({});
     setPhotoFile(null);
@@ -348,7 +577,36 @@ export function EmployeeDetailPage() {
     };
   }, [photoPreview]);
 
-  async function runTransition(toStatusId: string) {
+  function todayDateInput(): string {
+    const date = new Date();
+    date.setHours(0, 0, 0, 0);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  function defaultNoticeExitDate(): string {
+    const days = organization?.notice_period_days || 0;
+    if (days < 1) return '';
+    const date = new Date();
+    date.setHours(0, 0, 0, 0);
+    date.setDate(date.getDate() + days);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  function defaultReleaseExitDate(): string {
+    return employee?.exit_date || todayDateInput();
+  }
+
+  function transitionNeedsExitDate(key?: string) {
+    return key === 'notice_period' || key === 'released';
+  }
+
+  async function runTransition(toStatusId: string, remarks?: string, exitDate?: string) {
     const token = tokenStorage.getAccessToken();
     if (!token || !employeeId) return;
     setActionLoading(toStatusId);
@@ -356,14 +614,39 @@ export function EmployeeDetailPage() {
     try {
       const data = await organizationApi.transitionEmployee(token, employeeId, {
         to_status_id: toStatusId,
+        remarks: remarks?.trim() || undefined,
+        exit_date: exitDate || undefined,
       });
       setEmployee(data);
       setEditForm(toEditForm(data));
+      setPendingTransition(null);
+      setTransitionRemarks('');
+      setTransitionExitDate('');
     } catch (err) {
       setError(extractErrorMessage(err, 'Unable to update lifecycle status.'));
     } finally {
       setActionLoading(null);
     }
+  }
+
+  function openTransitionConfirm(transition: LifecycleTransition) {
+    setTransitionRemarks('');
+    if (transition.to_status.key === 'notice_period') {
+      setTransitionExitDate(defaultNoticeExitDate());
+    } else if (transition.to_status.key === 'released') {
+      setTransitionExitDate(defaultReleaseExitDate());
+    } else {
+      setTransitionExitDate('');
+    }
+    setPendingTransition(transition);
+    setError(null);
+  }
+
+  function closeTransitionConfirm() {
+    if (actionLoading) return;
+    setPendingTransition(null);
+    setTransitionRemarks('');
+    setTransitionExitDate('');
   }
 
   function startEditing() {
@@ -520,6 +803,16 @@ export function EmployeeDetailPage() {
     });
   }
 
+  function updateTaxDetail(patch: Partial<EmployeeTaxDetail>) {
+    setEditForm((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        tax_detail: { ...prev.tax_detail, ...patch },
+      };
+    });
+  }
+
   async function saveEmployee(event: FormEvent) {
     event.preventDefault();
     const token = tokenStorage.getAccessToken();
@@ -612,6 +905,24 @@ export function EmployeeDetailPage() {
             ),
         ),
       );
+      form.append(
+        'tax_detail',
+        JSON.stringify({
+          pan_number: editForm.tax_detail.pan_number.trim().toUpperCase().replace(/\s+/g, ''),
+          aadhaar_number: editForm.tax_detail.aadhaar_number.replace(/\D/g, ''),
+          uan_number: editForm.tax_detail.uan_number.trim(),
+          pf_number: editForm.tax_detail.pf_number.trim(),
+          esi_number: editForm.tax_detail.esi_number.trim(),
+          tax_regime: editForm.tax_detail.tax_regime || 'new',
+          tax_identification_number: editForm.tax_detail.tax_identification_number.trim(),
+          is_pf_applicable: Boolean(editForm.tax_detail.is_pf_applicable),
+          is_esi_applicable: Boolean(editForm.tax_detail.is_esi_applicable),
+          professional_tax_applicable: Boolean(editForm.tax_detail.professional_tax_applicable),
+          labour_welfare_fund_applicable: Boolean(
+            editForm.tax_detail.labour_welfare_fund_applicable,
+          ),
+        }),
+      );
       form.append('date_of_birth', editForm.date_of_birth || '');
       form.append('gender', editForm.gender);
       form.append('blood_group', editForm.blood_group);
@@ -623,6 +934,7 @@ export function EmployeeDetailPage() {
       form.append('mother_language', editForm.mother_language.trim());
       form.append('languages_known', editForm.languages_known.trim());
       form.append('designation_id', editForm.designation_id || '');
+      form.append('reporting_manager_id', editForm.reporting_manager_id || '');
       form.append('employee_type_id', editForm.employee_type_id || '');
       form.append('access_type_id', editForm.access_type_id || '');
       form.append('joining_date', editForm.joining_date || '');
@@ -697,6 +1009,23 @@ export function EmployeeDetailPage() {
     [experienceList],
   );
 
+  const isOwnProfile = Boolean(profile?.id && employee?.id === profile.id);
+
+  const visibleNavGroups = useMemo(
+    () =>
+      NAV_GROUPS.map((group) => ({
+        ...group,
+        ids: group.ids.filter((id) => id !== 'attendance' || isOwnProfile),
+      })).filter((group) => group.ids.length > 0),
+    [isOwnProfile],
+  );
+
+  useEffect(() => {
+    if (!isOwnProfile && activeTab === 'attendance') {
+      setActiveTab('profile');
+    }
+  }, [isOwnProfile, activeTab]);
+
   if (loading) {
     return (
       <section className="employees">
@@ -720,93 +1049,104 @@ export function EmployeeDetailPage() {
     employee.display_name;
   const shownPhoto = clearPhoto ? null : photoPreview || employee.profile_photo || null;
   const options = employee.master_options;
-  const canEditTab = EDITABLE_TABS.includes(activeTab);
+  const timelineCompleted = timelineItems.filter((item) => item.isPast || item.isCurrent).length;
+  const timelineTotal = timelineItems.length;
 
   return (
     <section className="employees employees--detail">
-      <div className="emp-profile">
-        <header className="emp-profile__banner">
-          <div className="emp-profile__identity">
-            {shownPhoto && !editing ? (
-              <img src={shownPhoto} alt="" className="emp-profile__avatar emp-profile__avatar--photo" />
-            ) : (
-              <div className="emp-profile__avatar" aria-hidden>
-                {initial}
-              </div>
-            )}
-            <div className="emp-profile__who">
-              <p className="emp-profile__eyebrow">Employee profile</p>
-              <h1>{employee.display_name}</h1>
-              <p className="emp-profile__lead">
-                {fullName !== employee.display_name ? `${fullName} · ` : null}
-                {employee.email || 'No email on file'}
-                {employee.employee_code ? ` · ${employee.employee_code}` : ''}
-              </p>
-              <div className="emp-profile__chips">
-                <span className="employees__status-pill">{employee.lifecycle_status.name}</span>
-                <span className="employees__chip">
-                  {employee.is_active ? 'Active record' : 'Inactive'}
-                </span>
-                {employee.employee_type_name ? (
-                  <span className="employees__chip">{employee.employee_type_name}</span>
-                ) : null}
-                {employee.designation_name ? (
-                  <span className="employees__chip">{employee.designation_name}</span>
-                ) : null}
-                {employee.joining_date ? (
-                  <span className="employees__chip">Joined {employee.joining_date}</span>
-                ) : null}
-              </div>
+      <header className="emp-profile__banner">
+        <div className="emp-profile__identity">
+          {shownPhoto && !editing ? (
+            <img src={shownPhoto} alt="" className="emp-profile__avatar emp-profile__avatar--photo" />
+          ) : (
+            <div className="emp-profile__avatar" aria-hidden>
+              {initial}
+            </div>
+          )}
+          <div className="emp-profile__who">
+            <p className="emp-profile__eyebrow">Employee profile</p>
+            <h1>{employee.display_name}</h1>
+            <p className="emp-profile__lead">
+              {fullName !== employee.display_name ? `${fullName} · ` : null}
+              {employee.email || 'No email on file'}
+              {employee.employee_code ? ` · ${employee.employee_code}` : ''}
+            </p>
+            <div className="emp-profile__chips">
+              <span
+                className="employees__status-pill"
+                data-lifecycle={lifecycleStatusTone(employee.lifecycle_status)}
+              >
+                {employee.lifecycle_status.name}
+              </span>
+              <span className="employees__chip">
+                {employee.is_active ? 'Active record' : 'Inactive'}
+              </span>
+              {employee.employee_type_name ? (
+                <span className="employees__chip">{employee.employee_type_name}</span>
+              ) : null}
+              {employee.designation_name ? (
+                <span className="employees__chip">{employee.designation_name}</span>
+              ) : null}
+              {employee.joining_date ? (
+                <span className="employees__chip">Joined {employee.joining_date}</span>
+              ) : null}
             </div>
           </div>
-          <div className="emp-profile__banner-actions">
-            {canEditTab && !editing ? (
-              <Button type="button" variant="secondary" onClick={startEditing}>
-                Edit details
-              </Button>
-            ) : null}
-            <Link to="/app/employees" className="employees__back">
-              Back to list
-            </Link>
-          </div>
-        </header>
-
-        <nav className="emp-profile__nav" aria-label="Employee sections">
-          {TABS.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              className={`emp-profile__nav-item ${activeTab === tab.id ? 'is-active' : ''}`}
-              aria-current={activeTab === tab.id ? 'page' : undefined}
-              onClick={() => setActiveTab(tab.id)}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </nav>
-      </div>
+        </div>
+        <div className="emp-profile__banner-actions">
+          <Link to="/app/employees" className="employees__back">
+            Back to list
+          </Link>
+        </div>
+      </header>
 
       {error ? <div className="auth-alert auth-alert--error">{error}</div> : null}
       {saveMessage ? <div className="auth-alert auth-alert--success">{saveMessage}</div> : null}
 
-      <div className="employees__workspace">
-        <div className="employees__main">
+      <div className="emp-profile__body">
+        <aside className="emp-profile__side" aria-label="Employee sections">
+          <nav className="emp-profile__side-nav">
+            {visibleNavGroups.map((group) => (
+              <div key={group.label} className="emp-profile__side-group">
+                <p className="emp-profile__side-label">{group.label}</p>
+                {group.ids.map((id, index) => {
+                  const tab = TAB_BY_ID[id];
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      className={`emp-profile__side-link ${activeTab === tab.id ? 'is-active' : ''}`}
+                      aria-current={activeTab === tab.id ? 'page' : undefined}
+                      style={{ '--nav-index': index } as CSSProperties}
+                      onClick={() => {
+                        setActiveTab(tab.id);
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                    >
+                      <span className="emp-profile__side-icon">
+                        <EmpProfileNavIcon name={tab.icon} />
+                      </span>
+                      <span className="emp-profile__side-copy">
+                        <strong>{tab.label}</strong>
+                        <em>{tab.description}</em>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            ))}
+          </nav>
+        </aside>
+
+        <div className="employees__main" key={activeTab}>
           {activeTab === 'profile' ? (
             <>
               {editing ? (
                 <form className="emp-profile__card emp-profile__card--edit" onSubmit={saveEmployee}>
-                  <header className="emp-profile__card-head emp-profile__card-head--row">
+                  <header className="emp-profile__card-head">
                     <div>
                       <h2>Edit profile</h2>
                       <p>Update photo, identity, and personal information.</p>
-                    </div>
-                    <div className="emp-profile__edit-actions">
-                      <Button type="button" variant="ghost" onClick={cancelEditing} disabled={saving}>
-                        Cancel
-                      </Button>
-                      <Button type="submit" loading={saving}>
-                        Save changes
-                      </Button>
                     </div>
                   </header>
 
@@ -941,15 +1281,20 @@ export function EmployeeDetailPage() {
                       />
                     </label>
                   </div>
+
+                  <FormSaveBar saving={saving} onCancel={cancelEditing} />
                 </form>
               ) : (
                 <>
                   <article className="emp-profile__card">
-                    <header className="emp-profile__card-head">
+                    <header className="emp-profile__card-head emp-profile__card-head--row">
                       <div>
                         <h2>Identity</h2>
                         <p>Photo, names, and account identifiers for this employee.</p>
                       </div>
+                      <Button type="button" variant="secondary" onClick={startEditing}>
+                        Edit
+                      </Button>
                     </header>
                     <div className="emp-profile__grid">
                       <Fact label="Display name" value={employee.display_name} />
@@ -961,11 +1306,14 @@ export function EmployeeDetailPage() {
                   </article>
 
                   <article className="emp-profile__card">
-                    <header className="emp-profile__card-head">
+                    <header className="emp-profile__card-head emp-profile__card-head--row">
                       <div>
                         <h2>Personal details</h2>
                         <p>Personal information for this employee.</p>
                       </div>
+                      <Button type="button" variant="secondary" onClick={startEditing}>
+                        Edit
+                      </Button>
                     </header>
                     <div className="emp-profile__grid">
                       <Fact label="Date of birth" value={employee.date_of_birth} />
@@ -987,18 +1335,10 @@ export function EmployeeDetailPage() {
             <>
               {editing ? (
                 <form className="emp-profile__card emp-profile__card--edit" onSubmit={saveEmployee}>
-                  <header className="emp-profile__card-head emp-profile__card-head--row">
+                  <header className="emp-profile__card-head">
                     <div>
                       <h2>Edit contact details</h2>
                       <p>Update phone numbers, address, and emergency contact.</p>
-                    </div>
-                    <div className="emp-profile__edit-actions">
-                      <Button type="button" variant="ghost" onClick={cancelEditing} disabled={saving}>
-                        Cancel
-                      </Button>
-                      <Button type="submit" loading={saving}>
-                        Save changes
-                      </Button>
                     </div>
                   </header>
 
@@ -1096,15 +1436,20 @@ export function EmployeeDetailPage() {
                       ) : null}
                     </label>
                   </div>
+
+                  <FormSaveBar saving={saving} onCancel={cancelEditing} />
                 </form>
               ) : (
                 <>
                   <article className="emp-profile__card">
-                    <header className="emp-profile__card-head">
+                    <header className="emp-profile__card-head emp-profile__card-head--row">
                       <div>
                         <h2>Contact & address</h2>
                         <p>Phone numbers and location details.</p>
                       </div>
+                      <Button type="button" variant="secondary" onClick={startEditing}>
+                        Edit
+                      </Button>
                     </header>
                     <div className="emp-profile__grid">
                       <Fact label="Mobile number" value={employee.mobile_number} />
@@ -1118,11 +1463,14 @@ export function EmployeeDetailPage() {
                   </article>
 
                   <article className="emp-profile__card">
-                    <header className="emp-profile__card-head">
+                    <header className="emp-profile__card-head emp-profile__card-head--row">
                       <div>
                         <h2>Emergency contact</h2>
                         <p>Who to reach in case of an emergency.</p>
                       </div>
+                      <Button type="button" variant="secondary" onClick={startEditing}>
+                        Edit
+                      </Button>
                     </header>
                     <div className="emp-profile__grid">
                       <Fact label="Name" value={employee.emergency_contact_name} />
@@ -1144,23 +1492,47 @@ export function EmployeeDetailPage() {
                       <h2>Edit bank details</h2>
                       <p>Manage salary accounts used for payroll transfers.</p>
                     </div>
-                    <div className="emp-profile__edit-actions">
-                      <Button type="button" variant="ghost" onClick={cancelEditing} disabled={saving}>
-                        Cancel
-                      </Button>
-                      <Button type="submit" loading={saving}>
-                        Save changes
-                      </Button>
-                    </div>
+                    <Button type="button" variant="secondary" onClick={addBankRow}>
+                      Add account
+                    </Button>
                   </header>
 
                   {fieldErrors.bank_details ? (
                     <em className="field-error">{fieldErrors.bank_details}</em>
                   ) : null}
 
-                  <div className="emp-profile__repeat-list">
+                  <div className="emp-bank__list">
                     {editForm.bank_details.map((row, index) => (
-                      <div className="emp-profile__repeat-row" key={index}>
+                      <div
+                        key={index}
+                        className={`emp-bank__card emp-bank__card--edit ${row.is_primary ? 'is-primary' : ''}`}
+                      >
+                        <div className="emp-bank__card-top">
+                          <div className="emp-bank__brand">
+                            <span className="emp-bank__mark" aria-hidden>
+                              {bankInitials(row.bank_name)}
+                            </span>
+                            <div>
+                              <strong>Account {index + 1}</strong>
+                              <em>{row.bank_name || 'New bank account'}</em>
+                            </div>
+                          </div>
+                          <div className="emp-bank__card-tools">
+                            <label className={`emp-bank__primary-toggle ${row.is_primary ? 'is-on' : ''}`}>
+                              <input
+                                type="radio"
+                                name="primary-bank"
+                                checked={row.is_primary}
+                                onChange={() => setPrimaryBank(index)}
+                              />
+                              <span>{row.is_primary ? 'Primary' : 'Set primary'}</span>
+                            </label>
+                            <Button type="button" variant="ghost" onClick={() => removeBankRow(index)}>
+                              Remove
+                            </Button>
+                          </div>
+                        </div>
+
                         <div className="emp-profile__edit-grid">
                           <label className="field">
                             <span>Account holder name</span>
@@ -1169,6 +1541,7 @@ export function EmployeeDetailPage() {
                               onChange={(e) =>
                                 updateBankRow(index, { account_holder_name: e.target.value })
                               }
+                              placeholder="Name as on bank records"
                             />
                           </label>
                           <label className="field">
@@ -1176,6 +1549,7 @@ export function EmployeeDetailPage() {
                             <input
                               value={row.bank_name}
                               onChange={(e) => updateBankRow(index, { bank_name: e.target.value })}
+                              placeholder="e.g. HDFC Bank"
                             />
                           </label>
                           <label className="field">
@@ -1183,8 +1557,12 @@ export function EmployeeDetailPage() {
                             <input
                               value={row.account_number}
                               onChange={(e) =>
-                                updateBankRow(index, { account_number: e.target.value })
+                                updateBankRow(index, {
+                                  account_number: e.target.value.replace(/\s+/g, ''),
+                                })
                               }
+                              inputMode="numeric"
+                              placeholder="Enter account number"
                             />
                             {fieldErrors[`bank_details.${index}.account_number`] ? (
                               <em className="field-error">
@@ -1208,59 +1586,344 @@ export function EmployeeDetailPage() {
                               </em>
                             ) : null}
                           </label>
-                          <label className="emp-profile__check">
-                            <input
-                              type="checkbox"
-                              checked={row.is_primary}
-                              onChange={() => setPrimaryBank(index)}
-                            />
-                            <span>Primary account</span>
-                          </label>
-                        </div>
-                        <div className="emp-profile__repeat-actions">
-                          <Button type="button" variant="ghost" onClick={() => removeBankRow(index)}>
-                            Remove account
-                          </Button>
                         </div>
                       </div>
                     ))}
+
                     {!editForm.bank_details.length ? (
-                      <p className="employees__empty-actions">No bank accounts added yet.</p>
+                      <div className="emp-bank__empty">
+                        <strong>No accounts yet</strong>
+                        <p>Add at least one salary account for payroll transfers.</p>
+                        <Button type="button" variant="secondary" onClick={addBankRow}>
+                          Add bank account
+                        </Button>
+                      </div>
                     ) : null}
                   </div>
 
-                  <Button type="button" variant="secondary" onClick={addBankRow}>
-                    Add bank account
-                  </Button>
+                  <FormSaveBar saving={saving} onCancel={cancelEditing} />
                 </form>
               ) : (
-                <article className="emp-profile__card">
-                  <header className="emp-profile__card-head">
+                <article className="emp-profile__card emp-bank">
+                  <header className="emp-profile__card-head emp-profile__card-head--row">
                     <div>
                       <h2>Bank details</h2>
                       <p>Salary accounts used for payroll transfers.</p>
                     </div>
+                    <div className="emp-profile__edit-actions">
+                      {(employee.bank_details || []).length ? (
+                        <Button
+                          type="button"
+                          variant={bankRevealed ? 'ghost' : 'secondary'}
+                          onClick={() => setBankRevealed((prev) => !prev)}
+                        >
+                          {bankRevealed ? 'Hide numbers' : 'Show numbers'}
+                        </Button>
+                      ) : null}
+                      <Button type="button" variant="secondary" onClick={startEditing}>
+                        Edit
+                      </Button>
+                    </div>
                   </header>
+
                   {(employee.bank_details || []).length ? (
-                    <div className="emp-profile__repeat-list">
-                      {employee.bank_details!.map((row, index) => (
-                        <div className="emp-profile__repeat-row" key={row.id || index}>
-                          <div className="emp-profile__grid">
-                            <Fact label="Account holder" value={row.account_holder_name} />
-                            <Fact label="Bank name" value={row.bank_name} />
-                            <Fact label="Account number" value={row.account_number} />
-                            <Fact label="IFSC" value={row.ifsc_code} />
-                          </div>
-                          {row.is_primary ? (
-                            <span className="employees__status-pill">Primary</span>
-                          ) : null}
+                    <div className="emp-bank__view">
+                      <div className="emp-bank__summary" aria-label="Bank summary">
+                        <div className="emp-bank__stat">
+                          <span>Accounts</span>
+                          <strong>{employee.bank_details!.length}</strong>
                         </div>
-                      ))}
+                        <div className="emp-bank__stat emp-bank__stat--accent">
+                          <span>Primary bank</span>
+                          <strong>
+                            {employee.bank_details!.find((row) => row.is_primary)?.bank_name ||
+                              employee.bank_details![0]?.bank_name ||
+                              '—'}
+                          </strong>
+                        </div>
+                        <div className="emp-bank__stat">
+                          <span>Primary holder</span>
+                          <strong>
+                            {employee.bank_details!.find((row) => row.is_primary)?.account_holder_name ||
+                              employee.bank_details![0]?.account_holder_name ||
+                              '—'}
+                          </strong>
+                        </div>
+                      </div>
+
+                      <div className="emp-bank__list">
+                        {employee.bank_details!.map((row, index) => (
+                          <div
+                            key={row.id || index}
+                            className={`emp-bank__card ${row.is_primary ? 'is-primary' : ''}`}
+                          >
+                            <div className="emp-bank__card-top">
+                              <div className="emp-bank__brand">
+                                <span className="emp-bank__mark" aria-hidden>
+                                  {bankInitials(row.bank_name)}
+                                </span>
+                                <div>
+                                  <strong>{row.bank_name || 'Bank account'}</strong>
+                                  <em>{row.account_holder_name || 'Account holder not set'}</em>
+                                </div>
+                              </div>
+                              {row.is_primary ? (
+                                <span className="emp-bank__badge">Primary</span>
+                              ) : (
+                                <span className="emp-bank__badge emp-bank__badge--muted">
+                                  Account {index + 1}
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="emp-bank__number">
+                              <span>Account number</span>
+                              <strong>
+                                {bankRevealed
+                                  ? formatAccountNumber(row.account_number)
+                                  : maskAccountNumber(row.account_number)}
+                              </strong>
+                            </div>
+
+                            <div className="emp-bank__meta">
+                              <div>
+                                <span>IFSC</span>
+                                <strong>{row.ifsc_code || '—'}</strong>
+                              </div>
+                              <div>
+                                <span>Holder</span>
+                                <strong>{row.account_holder_name || '—'}</strong>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   ) : (
-                    <div className="employees__empty-block">
+                    <div className="emp-bank__empty">
                       <strong>No bank accounts on file</strong>
                       <p>Add a bank account to enable payroll transfers.</p>
+                      <Button type="button" variant="secondary" onClick={startEditing}>
+                        Add bank account
+                      </Button>
+                    </div>
+                  )}
+                </article>
+              )}
+            </>
+          ) : null}
+
+          {activeTab === 'tax' ? (
+            <>
+              {editing ? (
+                <form className="emp-profile__card emp-profile__card--edit" onSubmit={saveEmployee}>
+                  <header className="emp-profile__card-head">
+                    <div>
+                      <h2>Edit tax details</h2>
+                      <p>PAN, statutory IDs, and payroll tax applicability.</p>
+                    </div>
+                  </header>
+
+                  {fieldErrors.tax_detail ? (
+                    <em className="field-error">{fieldErrors.tax_detail}</em>
+                  ) : null}
+
+                  <div className="emp-profile__edit-grid">
+                    <label className="field">
+                      <span>PAN number</span>
+                      <input
+                        value={editForm.tax_detail.pan_number}
+                        onChange={(e) =>
+                          updateTaxDetail({ pan_number: e.target.value.toUpperCase() })
+                        }
+                        placeholder="ABCDE1234F"
+                        maxLength={10}
+                      />
+                      {fieldErrors['tax_detail.pan_number'] ? (
+                        <em className="field-error">{fieldErrors['tax_detail.pan_number']}</em>
+                      ) : null}
+                    </label>
+                    <label className="field">
+                      <span>Aadhaar number</span>
+                      <input
+                        value={editForm.tax_detail.aadhaar_number}
+                        onChange={(e) =>
+                          updateTaxDetail({
+                            aadhaar_number: e.target.value.replace(/\D/g, '').slice(0, 12),
+                          })
+                        }
+                        placeholder="12-digit Aadhaar"
+                        maxLength={12}
+                        inputMode="numeric"
+                      />
+                      {fieldErrors['tax_detail.aadhaar_number'] ? (
+                        <em className="field-error">{fieldErrors['tax_detail.aadhaar_number']}</em>
+                      ) : null}
+                    </label>
+                    <label className="field">
+                      <span>UAN number</span>
+                      <input
+                        value={editForm.tax_detail.uan_number}
+                        onChange={(e) =>
+                          updateTaxDetail({ uan_number: e.target.value })
+                        }
+                      />
+                    </label>
+                    <label className="field">
+                      <span>PF number</span>
+                      <input
+                        value={editForm.tax_detail.pf_number}
+                        onChange={(e) =>
+                          updateTaxDetail({ pf_number: e.target.value })
+                        }
+                      />
+                    </label>
+                    <label className="field">
+                      <span>ESI number</span>
+                      <input
+                        value={editForm.tax_detail.esi_number}
+                        onChange={(e) =>
+                          updateTaxDetail({ esi_number: e.target.value })
+                        }
+                      />
+                    </label>
+                    <label className="field">
+                      <span>Tax regime</span>
+                      <select
+                        value={editForm.tax_detail.tax_regime}
+                        onChange={(e) =>
+                          updateTaxDetail({ tax_regime: e.target.value })
+                        }
+                      >
+                        <option value="new">New Regime</option>
+                        <option value="old">Old Regime</option>
+                      </select>
+                      {fieldErrors['tax_detail.tax_regime'] || fieldErrors.tax_regime ? (
+                        <em className="field-error">
+                          {fieldErrors['tax_detail.tax_regime'] || fieldErrors.tax_regime}
+                        </em>
+                      ) : null}
+                    </label>
+                    <label className="field field--full">
+                      <span>Tax identification number</span>
+                      <input
+                        value={editForm.tax_detail.tax_identification_number}
+                        onChange={(e) =>
+                          updateTaxDetail({ tax_identification_number: e.target.value })
+                        }
+                        placeholder="TIN / SSN / National tax ID"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="emp-profile__edit-grid emp-tax__flags">
+                    <label className="field field--check">
+                      <input
+                        type="checkbox"
+                        checked={editForm.tax_detail.is_pf_applicable}
+                        onChange={(e) =>
+                          updateTaxDetail({ is_pf_applicable: e.target.checked })
+                        }
+                      />
+                      <span>PF applicable</span>
+                    </label>
+                    <label className="field field--check">
+                      <input
+                        type="checkbox"
+                        checked={editForm.tax_detail.is_esi_applicable}
+                        onChange={(e) =>
+                          updateTaxDetail({ is_esi_applicable: e.target.checked })
+                        }
+                      />
+                      <span>ESI applicable</span>
+                    </label>
+                    <label className="field field--check">
+                      <input
+                        type="checkbox"
+                        checked={editForm.tax_detail.professional_tax_applicable}
+                        onChange={(e) =>
+                          updateTaxDetail({ professional_tax_applicable: e.target.checked })
+                        }
+                      />
+                      <span>Professional tax applicable</span>
+                    </label>
+                    <label className="field field--check">
+                      <input
+                        type="checkbox"
+                        checked={editForm.tax_detail.labour_welfare_fund_applicable}
+                        onChange={(e) =>
+                          updateTaxDetail({ labour_welfare_fund_applicable: e.target.checked })
+                        }
+                      />
+                      <span>Labour welfare fund applicable</span>
+                    </label>
+                  </div>
+
+                  <FormSaveBar saving={saving} onCancel={cancelEditing} />
+                </form>
+              ) : (
+                <article className="emp-profile__card">
+                  <header className="emp-profile__card-head emp-profile__card-head--row">
+                    <div>
+                      <h2>Tax details</h2>
+                      <p>Sensitive statutory IDs stay hidden until you choose to view them.</p>
+                    </div>
+                    <div className="emp-profile__edit-actions">
+                      <Button
+                        type="button"
+                        variant={taxRevealed ? 'ghost' : 'secondary'}
+                        onClick={() => setTaxRevealed((prev) => !prev)}
+                      >
+                        {taxRevealed ? 'Hide details' : 'View tax details'}
+                      </Button>
+                      <Button type="button" variant="secondary" onClick={startEditing}>
+                        Edit
+                      </Button>
+                    </div>
+                  </header>
+
+                  {taxRevealed ? (
+                    <div className="emp-profile__grid">
+                      <Fact label="PAN" value={employee.tax_detail?.pan_number} />
+                      <Fact label="Aadhaar" value={employee.tax_detail?.aadhaar_number} />
+                      <Fact label="UAN" value={employee.tax_detail?.uan_number} />
+                      <Fact label="PF number" value={employee.tax_detail?.pf_number} />
+                      <Fact label="ESI number" value={employee.tax_detail?.esi_number} />
+                      <Fact
+                        label="Tax regime"
+                        value={
+                          employee.tax_detail?.tax_regime === 'old'
+                            ? 'Old Regime'
+                            : employee.tax_detail?.tax_regime === 'new'
+                              ? 'New Regime'
+                              : employee.tax_detail?.tax_regime
+                        }
+                      />
+                      <Fact
+                        label="Tax ID"
+                        value={employee.tax_detail?.tax_identification_number}
+                      />
+                      <Fact
+                        label="PF applicable"
+                        value={employee.tax_detail?.is_pf_applicable ? 'Yes' : 'No'}
+                      />
+                      <Fact
+                        label="ESI applicable"
+                        value={employee.tax_detail?.is_esi_applicable ? 'Yes' : 'No'}
+                      />
+                      <Fact
+                        label="Professional tax"
+                        value={employee.tax_detail?.professional_tax_applicable ? 'Yes' : 'No'}
+                      />
+                      <Fact
+                        label="Labour welfare fund"
+                        value={employee.tax_detail?.labour_welfare_fund_applicable ? 'Yes' : 'No'}
+                      />
+                    </div>
+                  ) : (
+                    <div className="emp-tax__locked">
+                      <strong>Tax details are hidden</strong>
+                      <p>Click “View tax details” to reveal PAN, Aadhaar, and other statutory IDs.</p>
                     </div>
                   )}
                 </article>
@@ -1272,18 +1935,10 @@ export function EmployeeDetailPage() {
             <>
               {editing ? (
                 <form className="emp-profile__card emp-profile__card--edit" onSubmit={saveEmployee}>
-                  <header className="emp-profile__card-head emp-profile__card-head--row">
+                  <header className="emp-profile__card-head">
                     <div>
                       <h2>Edit education details</h2>
                       <p>Manage academic qualifications on file.</p>
-                    </div>
-                    <div className="emp-profile__edit-actions">
-                      <Button type="button" variant="ghost" onClick={cancelEditing} disabled={saving}>
-                        Cancel
-                      </Button>
-                      <Button type="submit" loading={saving}>
-                        Save changes
-                      </Button>
                     </div>
                   </header>
 
@@ -1366,14 +2021,19 @@ export function EmployeeDetailPage() {
                   <Button type="button" variant="secondary" onClick={addEducationRow}>
                     Add education entry
                   </Button>
+
+                  <FormSaveBar saving={saving} onCancel={cancelEditing} />
                 </form>
               ) : (
                 <article className="emp-profile__card">
-                  <header className="emp-profile__card-head">
+                  <header className="emp-profile__card-head emp-profile__card-head--row">
                     <div>
                       <h2>Education</h2>
                       <p>Academic path ordered by year of passing.</p>
                     </div>
+                    <Button type="button" variant="secondary" onClick={startEditing}>
+                      Edit
+                    </Button>
                   </header>
                   {educationTree.length ? (
                     <ol className="education-tree" aria-label="Education timeline">
@@ -1427,18 +2087,10 @@ export function EmployeeDetailPage() {
             <>
               {editing ? (
                 <form className="emp-profile__card emp-profile__card--edit" onSubmit={saveEmployee}>
-                  <header className="emp-profile__card-head emp-profile__card-head--row">
+                  <header className="emp-profile__card-head">
                     <div>
                       <h2>Edit job experience</h2>
                       <p>Prior roles and companies outside the current organization.</p>
-                    </div>
-                    <div className="emp-profile__edit-actions">
-                      <Button type="button" variant="ghost" onClick={cancelEditing} disabled={saving}>
-                        Cancel
-                      </Button>
-                      <Button type="submit" loading={saving}>
-                        Save changes
-                      </Button>
                     </div>
                   </header>
 
@@ -1552,14 +2204,19 @@ export function EmployeeDetailPage() {
                   <Button type="button" variant="secondary" onClick={addExperienceRow}>
                     Add experience entry
                   </Button>
+
+                  <FormSaveBar saving={saving} onCancel={cancelEditing} />
                 </form>
               ) : (
                 <article className="emp-profile__card">
-                  <header className="emp-profile__card-head">
+                  <header className="emp-profile__card-head emp-profile__card-head--row">
                     <div>
                       <h2>Experience</h2>
                       <p>Career snapshot with tenure and role breakdown.</p>
                     </div>
+                    <Button type="button" variant="secondary" onClick={startEditing}>
+                      Edit
+                    </Button>
                   </header>
                   {experienceList.length ? (
                     <div className="experience-info">
@@ -1724,18 +2381,10 @@ export function EmployeeDetailPage() {
             <>
               {editing ? (
                 <form className="emp-profile__card emp-profile__card--edit" onSubmit={saveEmployee}>
-                  <header className="emp-profile__card-head emp-profile__card-head--row">
+                  <header className="emp-profile__card-head">
                     <div>
                       <h2>Edit role details</h2>
                       <p>Update role, tenure, and record status.</p>
-                    </div>
-                    <div className="emp-profile__edit-actions">
-                      <Button type="button" variant="ghost" onClick={cancelEditing} disabled={saving}>
-                        Cancel
-                      </Button>
-                      <Button type="submit" loading={saving}>
-                        Save changes
-                      </Button>
                     </div>
                   </header>
 
@@ -1753,6 +2402,28 @@ export function EmployeeDetailPage() {
                           </option>
                         ))}
                       </select>
+                    </label>
+                    <label className="field">
+                      <span>Reporting manager</span>
+                      <select
+                        value={editForm.reporting_manager_id}
+                        onChange={(e) =>
+                          setEditForm({ ...editForm, reporting_manager_id: e.target.value })
+                        }
+                      >
+                        <option value="">No manager assigned</option>
+                        {managerOptions.map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.display_name}
+                            {item.designation_name ? ` · ${item.designation_name}` : ''}
+                          </option>
+                        ))}
+                      </select>
+                      {fieldErrors.reporting_manager_id ? (
+                        <em className="field-error">{fieldErrors.reporting_manager_id}</em>
+                      ) : (
+                        <em className="emp-profile__field-hint">Approves leave for this employee</em>
+                      )}
                     </label>
                     <label className="field">
                       <span>Employee type</span>
@@ -1807,17 +2478,23 @@ export function EmployeeDetailPage() {
                       <span>Active record</span>
                     </label>
                   </div>
+
+                  <FormSaveBar saving={saving} onCancel={cancelEditing} />
                 </form>
               ) : (
                 <article className="emp-profile__card">
-                  <header className="emp-profile__card-head">
+                  <header className="emp-profile__card-head emp-profile__card-head--row">
                     <div>
                       <h2>Role</h2>
                       <p>Role identifiers and tenure for this organization.</p>
                     </div>
+                    <Button type="button" variant="secondary" onClick={startEditing}>
+                      Edit
+                    </Button>
                   </header>
                   <div className="emp-profile__grid">
                     <Fact label="Designation" value={employee.designation_name} />
+                    <Fact label="Reporting manager" value={employee.reporting_manager_name} />
                     <Fact label="Employee type" value={employee.employee_type_name} />
                     <Fact label="Access type" value={employee.access_type_name} />
                     <Fact label="Joining date" value={employee.joining_date} />
@@ -1830,18 +2507,16 @@ export function EmployeeDetailPage() {
           ) : null}
 
           {activeTab === 'documents' ? (
-            <article className="emp-profile__card emp-profile__card--placeholder">
-              <header className="emp-profile__card-head">
-                <div>
-                  <h2>Documents</h2>
-                  <p>Contracts, IDs, and onboarding files will appear here.</p>
-                </div>
-              </header>
-              <div className="employees__empty-block">
-                <strong>No documents yet</strong>
-                <p>Upload and verification flows can plug into this tab next.</p>
-              </div>
-            </article>
+            <EmployeeDocumentsPanel
+              employeeId={employee.id}
+              employeeTypeName={employee.employee_type_name}
+            />
+          ) : null}
+
+          {activeTab === 'assets' ? <EmployeeAssetsPanel employeeId={employee.id} /> : null}
+
+          {activeTab === 'attendance' && isOwnProfile ? (
+            <EmployeeAttendancePanel employeeId={employee.id} />
           ) : null}
 
           {activeTab === 'activities' ? (
@@ -1875,86 +2550,250 @@ export function EmployeeDetailPage() {
             </article>
           ) : null}
 
-          {activeTab === 'leaves' ? (
-            <article className="emp-profile__card emp-profile__card--placeholder">
-              <header className="emp-profile__card-head">
+          {activeTab === 'timeline' ? (
+            <article className="emp-profile__card emp-timeline">
+              <header className="emp-profile__card-head emp-profile__card-head--row">
                 <div>
-                  <h2>Leaves</h2>
-                  <p>Leave balances and requests for this employee.</p>
+                  <h2>Lifecycle timeline</h2>
+                  <p>Status journey with the date each step was reached.</p>
                 </div>
+                {timelineTotal ? (
+                  <div className="emp-timeline__progress" aria-label="Lifecycle progress">
+                    <span>
+                      {timelineCompleted} of {timelineTotal}
+                    </span>
+                    <div className="emp-timeline__progress-track">
+                      <div
+                        className="emp-timeline__progress-fill"
+                        style={{
+                          width: `${Math.round((timelineCompleted / timelineTotal) * 100)}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                ) : null}
               </header>
-              <div className="employees__empty-block">
-                <strong>Leave module coming soon</strong>
-                <p>Balances, requests, and approvals will live in this section.</p>
+
+              <div className="emp-timeline__layout">
+                <ol className="lifecycle-timeline lifecycle-timeline--panel">
+                  {timelineItems.map((item) => {
+                    const time = formatTimelineTime(item.changedAt);
+                    return (
+                      <li
+                        key={item.status.id}
+                        data-lifecycle={lifecycleStatusTone(item.status)}
+                        className={[
+                          'lifecycle-timeline__item',
+                          item.isCurrent ? 'is-current' : '',
+                          item.isPast ? 'is-past' : '',
+                          !item.changedAt && !item.isCurrent ? 'is-upcoming' : '',
+                        ]
+                          .filter(Boolean)
+                          .join(' ')}
+                      >
+                        <span className="lifecycle-timeline__dot" aria-hidden />
+                        <div className="lifecycle-timeline__body">
+                          <div className="lifecycle-timeline__row">
+                            <strong>{item.status.name}</strong>
+                            {item.isCurrent ? <em>Current</em> : null}
+                          </div>
+                          <time
+                            className="lifecycle-timeline__date"
+                            dateTime={item.changedAt || undefined}
+                          >
+                            {formatTimelineDate(item.changedAt)}
+                            {time ? <span>{time}</span> : null}
+                          </time>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ol>
+
+                <aside className="emp-timeline__aside">
+                  <div
+                    className="emp-timeline__status-card"
+                    data-lifecycle={lifecycleStatusTone(employee.lifecycle_status)}
+                  >
+                    <span>Current status</span>
+                    <strong>{employee.lifecycle_status.name}</strong>
+                    {employee.lifecycle_status.key === 'notice_period' ? (
+                      <div className="emp-timeline__notice-meta">
+                        <div>
+                          <span>Notice started</span>
+                          <strong>
+                            {formatTimelineDate(
+                              (employee.history || []).find((row) => row.to_status.key === 'notice_period')
+                                ?.changed_at || null,
+                            )}
+                          </strong>
+                        </div>
+                        <div>
+                          <span>Exit date</span>
+                          <strong>
+                            {employee.exit_date
+                              ? formatTimelineDate(`${employee.exit_date}T00:00:00`)
+                              : '—'}
+                          </strong>
+                        </div>
+                        {organization?.notice_period_days ? (
+                          <div>
+                            <span>Notice period</span>
+                            <strong>{organization.notice_period_days} days</strong>
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <p>Track and advance this employee through the organization lifecycle.</p>
+                    )}
+                  </div>
+
+                  <div className="emp-timeline__actions">
+                    <h3>Actions</h3>
+                    <div className="employees__actions">
+                      {(employee.available_transitions || []).length ? (
+                        employee.available_transitions!.map((transition) => (
+                          <div className="emp-timeline__action" key={transition.id}>
+                            <span className="employees__rail-next">
+                              Next: {transition.to_status.name}
+                            </span>
+                            <Button
+                              onClick={() => openTransitionConfirm(transition)}
+                              disabled={editing || Boolean(actionLoading)}
+                            >
+                              {transition.action_label || 'Continue'}
+                            </Button>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="employees__empty-actions">No further transitions.</p>
+                      )}
+                    </div>
+                  </div>
+                </aside>
               </div>
             </article>
           ) : null}
+
+          {activeTab === 'leaves' ? <EmployeeLeavesPanel employeeId={employee.id} /> : null}
         </div>
+      </div>
 
-        <aside className="employees__timeline-rail" aria-label="Lifecycle timeline">
-          <div className="employees__timeline-card">
-            <header className="employees__panel-head">
-              <h3>Lifecycle timeline</h3>
-              <p>Status journey with the date each step was reached.</p>
-            </header>
-
-            <ol className="lifecycle-timeline lifecycle-timeline--rail">
-              {timelineItems.map((item) => {
-                const time = formatTimelineTime(item.changedAt);
-                return (
-                  <li
-                    key={item.status.id}
-                    className={[
-                      'lifecycle-timeline__item',
-                      item.isCurrent ? 'is-current' : '',
-                      item.isPast ? 'is-past' : '',
-                      !item.changedAt && !item.isCurrent ? 'is-upcoming' : '',
-                    ]
-                      .filter(Boolean)
-                      .join(' ')}
-                  >
-                    <span className="lifecycle-timeline__dot" aria-hidden />
-                    <div className="lifecycle-timeline__body">
-                      <div className="lifecycle-timeline__row">
-                        <strong>{item.status.name}</strong>
-                        {item.isCurrent ? <em>Current</em> : null}
-                      </div>
-                      <time className="lifecycle-timeline__date" dateTime={item.changedAt || undefined}>
-                        {formatTimelineDate(item.changedAt)}
-                        {time ? <span>{time}</span> : null}
-                      </time>
-                    </div>
-                  </li>
+      <Modal
+        open={Boolean(pendingTransition)}
+        title="Confirm lifecycle update"
+        onClose={closeTransitionConfirm}
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={closeTransitionConfirm}
+              disabled={Boolean(actionLoading)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              loading={Boolean(actionLoading)}
+              onClick={() => {
+                if (!pendingTransition) return;
+                const needsExit = transitionNeedsExitDate(pendingTransition.to_status.key);
+                if (needsExit && !transitionExitDate) {
+                  setError(
+                    pendingTransition.to_status.key === 'released'
+                      ? 'Release date is required.'
+                      : 'Exit date is required to start notice period.',
+                  );
+                  return;
+                }
+                void runTransition(
+                  pendingTransition.to_status.id,
+                  transitionRemarks,
+                  needsExit ? transitionExitDate : undefined,
                 );
-              })}
-            </ol>
+              }}
+            >
+              {pendingTransition?.action_label || 'Confirm update'}
+            </Button>
+          </>
+        }
+      >
+        {pendingTransition ? (
+          <div className="emp-lifecycle-confirm">
+            <p className="emp-lifecycle-confirm__lead">
+              Move <strong>{employee.display_name}</strong> to the next lifecycle status?
+              This will be recorded in the activity history.
+            </p>
 
-            <div className="employees__rail-actions">
-              <h4>Actions</h4>
-              <div className="employees__actions">
-                {(employee.available_transitions || []).length ? (
-                  employee.available_transitions!.map((transition) => (
-                    <div className="employees__rail-action" key={transition.id}>
-                      <span className="employees__rail-next">
-                        Next: {transition.to_status.name}
-                      </span>
-                      <Button
-                        loading={actionLoading === transition.to_status.id}
-                        onClick={() => void runTransition(transition.to_status.id)}
-                        disabled={editing}
-                      >
-                        Continue
-                      </Button>
-                    </div>
-                  ))
-                ) : (
-                  <p className="employees__empty-actions">No further transitions.</p>
-                )}
+            <div className="emp-lifecycle-confirm__path" aria-label="Status change">
+              <div
+                className="emp-lifecycle-confirm__status"
+                data-lifecycle={lifecycleStatusTone(employee.lifecycle_status)}
+              >
+                <span>From</span>
+                <strong>{employee.lifecycle_status.name}</strong>
+              </div>
+              <span className="emp-lifecycle-confirm__arrow" aria-hidden>
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M5 12h14M13 6l6 6-6 6" />
+                </svg>
+              </span>
+              <div
+                className="emp-lifecycle-confirm__status emp-lifecycle-confirm__status--next"
+                data-lifecycle={lifecycleStatusTone(pendingTransition.to_status)}
+              >
+                <span>To</span>
+                <strong>{pendingTransition.to_status.name}</strong>
               </div>
             </div>
+
+            {pendingTransition.to_status.key === 'notice_period' ? (
+              <label className="emp-lifecycle-confirm__remarks">
+                <span>
+                  Exit date{' '}
+                  <em>
+                    (from {organization?.notice_period_days || '—'} day notice period)
+                  </em>
+                </span>
+                <input
+                  type="date"
+                  value={transitionExitDate}
+                  onChange={(e) => setTransitionExitDate(e.target.value)}
+                  disabled={Boolean(actionLoading)}
+                  required
+                />
+              </label>
+            ) : null}
+
+            {pendingTransition.to_status.key === 'released' ? (
+              <label className="emp-lifecycle-confirm__remarks">
+                <span>
+                  Release / end date <em>(override if needed)</em>
+                </span>
+                <input
+                  type="date"
+                  value={transitionExitDate}
+                  onChange={(e) => setTransitionExitDate(e.target.value)}
+                  disabled={Boolean(actionLoading)}
+                  required
+                />
+              </label>
+            ) : null}
+
+            <label className="emp-lifecycle-confirm__remarks">
+              <span>Remarks <em>(optional)</em></span>
+              <textarea
+                value={transitionRemarks}
+                onChange={(e) => setTransitionRemarks(e.target.value)}
+                rows={3}
+                placeholder="Add a note for this status change…"
+                disabled={Boolean(actionLoading)}
+              />
+            </label>
           </div>
-        </aside>
-      </div>
+        ) : null}
+      </Modal>
     </section>
   );
 }

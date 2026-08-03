@@ -1,0 +1,218 @@
+.emp-assets__actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.emp-assets__setup-link {
+  font-size: 0.84rem;
+  color: var(--color-brand-700, var(--color-brand-600));
+  text-decoration: none;
+}
+
+.emp-assets__setup-link:hover {
+  text-decoration: underline;
+}
+
+.emp-assets__banner {
+  margin: 0 0 0.85rem;
+  padding: 0.7rem 0.85rem;
+  border-radius: var(--radius-md);
+  font-size: 0.86rem;
+}
+
+.emp-assets__banner--error {
+  background: color-mix(in srgb, var(--color-danger-600) 12%, transparent);
+  color: var(--color-danger-600);
+}
+
+.emp-assets__section-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.emp-assets__section-head--spaced {
+  margin-top: 1.25rem;
+}
+
+.emp-assets__section-head h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.emp-assets__section-head p {
+  margin: 0.2rem 0 0;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.emp-assets__count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.7rem;
+  height: 1.7rem;
+  padding: 0 0.45rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-brand-500) 16%, transparent);
+  color: var(--color-brand-700, var(--color-brand-600));
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.emp-assets__count--muted {
+  background: color-mix(in srgb, var(--color-text-muted) 12%, transparent);
+  color: var(--color-text-muted);
+}
+
+.emp-assets__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.emp-assets__item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--color-surface) 92%, var(--color-bg));
+}
+
+.emp-assets__item-main {
+  min-width: 0;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.emp-assets__item-main strong {
+  font-size: 0.95rem;
+}
+
+.emp-assets__item-main > span {
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+}
+
+.emp-assets__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.85rem;
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+}
+
+.emp-assets__remarks {
+  margin: 0.25rem 0 0;
+  font-size: 0.82rem;
+  color: var(--color-text-secondary, var(--color-text-muted));
+}
+
+.emp-assets__item-side {
+  display: grid;
+  justify-items: end;
+  gap: 0.55rem;
+  flex-shrink: 0;
+}
+
+.emp-assets__status {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 650;
+  text-transform: capitalize;
+}
+
+.emp-assets__status.is-ok {
+  background: color-mix(in srgb, var(--color-success-600) 14%, transparent);
+  color: var(--color-success-700, var(--color-success-600));
+}
+
+.emp-assets__status.is-bad {
+  background: color-mix(in srgb, var(--color-danger-600) 14%, transparent);
+  color: var(--color-danger-600);
+}
+
+.emp-assets__status.is-muted {
+  background: color-mix(in srgb, var(--color-text-muted) 12%, transparent);
+  color: var(--color-text-muted);
+}
+
+.emp-assets__empty {
+  margin: 0;
+  padding: 0.85rem 0.2rem;
+  font-size: 0.88rem;
+  color: var(--color-text-muted);
+}
+
+.emp-assets__form {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.emp-assets__form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.emp-assets__field {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.84rem;
+}
+
+.emp-assets__field span {
+  color: var(--color-text-muted);
+  font-weight: 550;
+}
+
+.emp-assets__field input,
+.emp-assets__field select,
+.emp-assets__field textarea {
+  width: 100%;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  font: inherit;
+}
+
+.emp-assets__check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.86rem;
+}
+
+.emp-assets__revoke {
+  display: grid;
+  gap: 0.85rem;
+}
+
+@media (max-width: 720px) {
+  .emp-assets__item {
+    flex-direction: column;
+  }
+
+  .emp-assets__item-side {
+    width: 100%;
+    justify-items: start;
+  }
+
+  .emp-assets__form-grid {
+    grid-template-columns: 1fr;
+  }
+}

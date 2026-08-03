@@ -4,6 +4,7 @@ import './IconAction.css';
 type IconActionProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   label: string;
   danger?: boolean;
+  success?: boolean;
   children: ReactNode;
 };
 
@@ -11,6 +12,7 @@ type IconActionProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 export function IconAction({
   label,
   danger = false,
+  success = false,
   className = '',
   children,
   disabled,
@@ -22,6 +24,7 @@ export function IconAction({
       className={[
         'icon-action',
         danger ? 'icon-action--danger' : '',
+        success ? 'icon-action--success' : '',
         className,
       ]
         .filter(Boolean)
@@ -95,6 +98,31 @@ export function IconActivate() {
     <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
       <circle cx="12" cy="12" r="8" />
       <path d="m8.5 12.5 2.5 2.5 4.5-5" />
+    </svg>
+  );
+}
+
+export function IconApprove() {
+  return (
+    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <path d="m5 12 5 5L20 7" />
+    </svg>
+  );
+}
+
+export function IconReject() {
+  return (
+    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <path d="M6 6 18 18M18 6 6 18" />
+    </svg>
+  );
+}
+
+export function IconView() {
+  return (
+    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <path d="M2.5 12S6.5 6 12 6s9.5 6 9.5 6-4 6-9.5 6S2.5 12 2.5 12Z" />
+      <circle cx="12" cy="12" r="2.5" />
     </svg>
   );
 }

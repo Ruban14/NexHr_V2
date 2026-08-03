@@ -18,6 +18,10 @@ from apps.organization.models import (
     AccessType,
     Department,
     Designation,
+    DocumentCategory,
+    DocumentDefinition,
+    DocumentPolicy,
+    DocumentPolicyItem,
     EmployeeType,
     Holiday,
     HolidayCalendar,
@@ -1080,7 +1084,509 @@ class MasterService:
             raise NotFoundServiceError('Holiday not found.', code='holiday_not_found')
         item.delete()
 
+    # ── Document categories (global masters) ────────────────────────────────
+
+    @classmethod
+    def list_document_categories(
+        cls,
+        *,
+        user: User,
+        branch_id: str | UUID | None,
+        search: str = '',
+        is_active: bool | None = True,
+    ) -> list[dict]:
+        WorkspaceService.get_membership(user, branch_id=branch_id)
+        qs = DocumentCategory.objects.all()
+        if is_active is not None:
+            qs = qs.filter(is_active=is_active)
+        if search:
+            qs = qs.filter(name__icontains=search.strip())
+        return [cls.serialize_document_category(item) for item in qs.order_by('display_order', 'name')]
+
+    @classmethod
+    @transaction.atomic
+    def create_document_category(
+        cls,
+        *,
+        user: User,
+        branch_id: str | UUID | None,
+        name: str,
+        description: str = '',
+        display_order: int = 0,
+    ) -> dict:
+        cls.require_admin(user, branch_id)
+        cleaned = name.strip()
+        if len(cleaned) < 2:
+            raise ValidationServiceError('Category name must be at least 2 characters.', code='invalid_name')
+        if DocumentCategory.objects.filter(name__iexact=cleaned).exists():
+            raise ConflictServiceError('A document category with this name already exists.', code='category_exists')
+        item = DocumentCategory.objects.create(
+            name=cleaned,
+            description=(description or '').strip(),
+            display_order=max(0, int(display_order or 0)),
+            is_active=True,
+            created_by=user,
+            updated_by=user,
+        )
+        return cls.serialize_document_category(item)
+
+    @classmethod
+    @transaction.atomic
+    def update_document_category(
+        cls,
+        *,
+        user: User,
+        branch_id: str | UUID | None,
+        item_id: str | UUID,
+        payload: dict,
+    ) -> dict:
+        cls.require_admin(user, branch_id)
+        item = DocumentCategory.objects.filter(id=item_id).first()
+        if item is None:
+            raise NotFoundServiceError('Document category not found.', code='category_not_found')
+        if 'name' in payload and payload['name'] is not None:
+            cleaned = str(payload['name']).strip()
+            if len(cleaned) < 2:
+                raise ValidationServiceError('Category name must be at least 2 characters.', code='invalid_name')
+            if DocumentCategory.objects.filter(name__iexact=cleaned).exclude(id=item.id).exists():
+                raise ConflictServiceError(
+                    'A document category with this name already exists.',
+                    code='category_exists',
+                )
+            item.name = cleaned
+        if 'description' in payload and payload['description'] is not None:
+            item.description = str(payload['description']).strip()
+        if 'display_order' in payload and payload['display_order'] is not None:
+            item.display_order = max(0, int(payload['display_order']))
+        if 'is_active' in payload and payload['is_active'] is not None:
+            item.is_active = bool(payload['is_active'])
+        item.updated_by = user
+        item.save()
+        return cls.serialize_document_category(item)
+
+    # ── Document definitions (organization-scoped) ──────────────────────────
+
+    @classmethod
+    def list_document_definitions(
+        cls,
+        *,
+        user: User,
+        branch_id: str | UUID | None,
+        search: str = '',
+        page: int = 1,
+        page_size: int = 20,
+        is_active: bool | None = None,
+        category_id: str | UUID | None = None,
+    ) -> dict:
+        membership = WorkspaceService.get_membership(user, branch_id=branch_id)
+        organization = membership.branch.organization
+        qs = DocumentDefinition.objects.filter(
+            Q(organization=organization) | Q(organization__isnull=True)
+        ).select_related('category')
+        if is_active is not None:
+            qs = qs.filter(is_active=is_active)
+        if category_id:
+            qs = qs.filter(category_id=category_id)
+        if search:
+            qs = qs.filter(
+                Q(name__icontains=search.strip())
+                | Q(description__icontains=search.strip())
+                | Q(category__name__icontains=search.strip())
+            )
+        return cls._paginate(
+            qs.order_by('category__display_order', 'category__name', 'name'),
+            page=page,
+            page_size=page_size,
+            serialize=cls.serialize_document_definition,
+        )
+
+    @classmethod
+    @transaction.atomic
+    def create_document_definition(
+        cls,
+        *,
+        user: User,
+        branch_id: str | UUID | None,
+        name: str,
+        category_id: str | UUID,
+        description: str = '',
+    ) -> dict:
+        membership = cls.require_admin(user, branch_id)
+        organization = cls._organization(membership)
+        cleaned = name.strip()
+        if len(cleaned) < 2:
+            raise ValidationServiceError('Document name must be at least 2 characters.', code='invalid_name')
+        category = DocumentCategory.objects.filter(id=category_id, is_active=True).first()
+        if category is None:
+            raise NotFoundServiceError('Document category not found.', code='category_not_found')
+        if DocumentDefinition.objects.filter(
+            organization=organization,
+            category=category,
+            name__iexact=cleaned,
+        ).exists():
+            raise ConflictServiceError(
+                'A document with this name already exists in the category.',
+                code='document_exists',
+            )
+        item = DocumentDefinition.objects.create(
+            organization=organization,
+            category=category,
+            name=cleaned,
+            description=(description or '').strip(),
+            is_active=True,
+            created_by=user,
+            updated_by=user,
+        )
+        return cls.serialize_document_definition(item)
+
+    @classmethod
+    @transaction.atomic
+    def update_document_definition(
+        cls,
+        *,
+        user: User,
+        branch_id: str | UUID | None,
+        item_id: str | UUID,
+        payload: dict,
+    ) -> dict:
+        membership = cls.require_admin(user, branch_id)
+        organization = cls._organization(membership)
+        item = DocumentDefinition.objects.filter(id=item_id, organization=organization).select_related('category').first()
+        if item is None:
+            raise NotFoundServiceError('Document not found.', code='document_not_found')
+        category = item.category
+        if 'category_id' in payload and payload['category_id'] is not None:
+            category = DocumentCategory.objects.filter(id=payload['category_id'], is_active=True).first()
+            if category is None:
+                raise NotFoundServiceError('Document category not found.', code='category_not_found')
+            item.category = category
+        if 'name' in payload and payload['name'] is not None:
+            cleaned = str(payload['name']).strip()
+            if len(cleaned) < 2:
+                raise ValidationServiceError('Document name must be at least 2 characters.', code='invalid_name')
+            if (
+                DocumentDefinition.objects.filter(
+                    organization=organization,
+                    category=category,
+                    name__iexact=cleaned,
+                )
+                .exclude(id=item.id)
+                .exists()
+            ):
+                raise ConflictServiceError(
+                    'A document with this name already exists in the category.',
+                    code='document_exists',
+                )
+            item.name = cleaned
+        if 'description' in payload and payload['description'] is not None:
+            item.description = str(payload['description']).strip()
+        if 'is_active' in payload and payload['is_active'] is not None:
+            item.is_active = bool(payload['is_active'])
+        item.updated_by = user
+        item.save()
+        return cls.serialize_document_definition(item)
+
+    @classmethod
+    @transaction.atomic
+    def delete_document_definition(cls, *, user: User, branch_id: str | UUID | None, item_id: str | UUID) -> None:
+        membership = cls.require_admin(user, branch_id)
+        organization = cls._organization(membership)
+        item = DocumentDefinition.objects.filter(id=item_id, organization=organization).first()
+        if item is None:
+            raise NotFoundServiceError('Document not found.', code='document_not_found')
+        if item.policy_items.exists():
+            raise ConflictServiceError(
+                'Remove this document from policies before deleting it.',
+                code='document_in_use',
+            )
+        item.delete()
+
+    # ── Document policies (organization-scoped) ─────────────────────────────
+
+    @classmethod
+    def list_document_policies(
+        cls,
+        *,
+        user: User,
+        branch_id: str | UUID | None,
+        search: str = '',
+        page: int = 1,
+        page_size: int = 20,
+        is_active: bool | None = None,
+        employee_type_id: str | UUID | None = None,
+    ) -> dict:
+        membership = WorkspaceService.get_membership(user, branch_id=branch_id)
+        qs = DocumentPolicy.objects.filter(organization=membership.branch.organization).select_related(
+            'employee_type'
+        ).prefetch_related('items__document__category')
+        if is_active is not None:
+            qs = qs.filter(is_active=is_active)
+        if employee_type_id:
+            qs = qs.filter(employee_type_id=employee_type_id)
+        if search:
+            qs = qs.filter(
+                Q(name__icontains=search.strip())
+                | Q(description__icontains=search.strip())
+                | Q(employee_type__name__icontains=search.strip())
+            )
+        return cls._paginate(
+            qs.order_by('name'),
+            page=page,
+            page_size=page_size,
+            serialize=cls.serialize_document_policy,
+        )
+
+    @classmethod
+    def get_document_policy(cls, *, user: User, branch_id: str | UUID | None, item_id: str | UUID) -> dict:
+        membership = WorkspaceService.get_membership(user, branch_id=branch_id)
+        item = (
+            DocumentPolicy.objects.filter(id=item_id, organization=membership.branch.organization)
+            .select_related('employee_type')
+            .prefetch_related('items__document__category')
+            .first()
+        )
+        if item is None:
+            raise NotFoundServiceError('Document policy not found.', code='policy_not_found')
+        return cls.serialize_document_policy(item)
+
+    @classmethod
+    @transaction.atomic
+    def create_document_policy(
+        cls,
+        *,
+        user: User,
+        branch_id: str | UUID | None,
+        name: str,
+        employee_type_id: str | UUID,
+        description: str = '',
+        is_default: bool = False,
+        items: list[dict] | None = None,
+    ) -> dict:
+        membership = cls.require_admin(user, branch_id)
+        organization = cls._organization(membership)
+        cleaned = name.strip()
+        if len(cleaned) < 2:
+            raise ValidationServiceError('Policy name must be at least 2 characters.', code='invalid_name')
+        employee_type = EmployeeType.objects.filter(id=employee_type_id, is_active=True).first()
+        if employee_type is None:
+            raise NotFoundServiceError('Employee type not found.', code='employee_type_not_found')
+        if DocumentPolicy.objects.filter(
+            organization=organization,
+            employee_type=employee_type,
+            name__iexact=cleaned,
+        ).exists():
+            raise ConflictServiceError(
+                'A policy with this name already exists for the employee type.',
+                code='policy_exists',
+            )
+        if is_default:
+            DocumentPolicy.objects.filter(
+                organization=organization,
+                employee_type=employee_type,
+                is_default=True,
+            ).update(is_default=False, updated_by=user)
+        policy = DocumentPolicy.objects.create(
+            organization=organization,
+            employee_type=employee_type,
+            name=cleaned,
+            description=(description or '').strip(),
+            is_default=bool(is_default),
+            is_active=True,
+            created_by=user,
+            updated_by=user,
+        )
+        cls._replace_policy_items(policy=policy, organization=organization, items=items or [], user=user)
+        return cls.get_document_policy(user=user, branch_id=branch_id, item_id=policy.id)
+
+    @classmethod
+    @transaction.atomic
+    def update_document_policy(
+        cls,
+        *,
+        user: User,
+        branch_id: str | UUID | None,
+        item_id: str | UUID,
+        payload: dict,
+    ) -> dict:
+        membership = cls.require_admin(user, branch_id)
+        organization = cls._organization(membership)
+        policy = DocumentPolicy.objects.filter(id=item_id, organization=organization).first()
+        if policy is None:
+            raise NotFoundServiceError('Document policy not found.', code='policy_not_found')
+        employee_type = policy.employee_type
+        if 'employee_type_id' in payload and payload['employee_type_id'] is not None:
+            employee_type = EmployeeType.objects.filter(
+                id=payload['employee_type_id'],
+                is_active=True,
+            ).first()
+            if employee_type is None:
+                raise NotFoundServiceError('Employee type not found.', code='employee_type_not_found')
+            policy.employee_type = employee_type
+        if 'name' in payload and payload['name'] is not None:
+            cleaned = str(payload['name']).strip()
+            if len(cleaned) < 2:
+                raise ValidationServiceError('Policy name must be at least 2 characters.', code='invalid_name')
+            if (
+                DocumentPolicy.objects.filter(
+                    organization=organization,
+                    employee_type=employee_type,
+                    name__iexact=cleaned,
+                )
+                .exclude(id=policy.id)
+                .exists()
+            ):
+                raise ConflictServiceError(
+                    'A policy with this name already exists for the employee type.',
+                    code='policy_exists',
+                )
+            policy.name = cleaned
+        if 'description' in payload and payload['description'] is not None:
+            policy.description = str(payload['description']).strip()
+        if 'is_default' in payload and payload['is_default'] is not None:
+            policy.is_default = bool(payload['is_default'])
+            if policy.is_default:
+                DocumentPolicy.objects.filter(
+                    organization=organization,
+                    employee_type=employee_type,
+                    is_default=True,
+                ).exclude(id=policy.id).update(is_default=False, updated_by=user)
+        if 'is_active' in payload and payload['is_active'] is not None:
+            policy.is_active = bool(payload['is_active'])
+        policy.updated_by = user
+        policy.save()
+        if 'items' in payload and payload['items'] is not None:
+            cls._replace_policy_items(
+                policy=policy,
+                organization=organization,
+                items=payload['items'],
+                user=user,
+            )
+        return cls.get_document_policy(user=user, branch_id=branch_id, item_id=policy.id)
+
+    @classmethod
+    @transaction.atomic
+    def delete_document_policy(cls, *, user: User, branch_id: str | UUID | None, item_id: str | UUID) -> None:
+        membership = cls.require_admin(user, branch_id)
+        policy = DocumentPolicy.objects.filter(id=item_id, organization=cls._organization(membership)).first()
+        if policy is None:
+            raise NotFoundServiceError('Document policy not found.', code='policy_not_found')
+        policy.delete()
+
+    @classmethod
+    def _replace_policy_items(
+        cls,
+        *,
+        policy: DocumentPolicy,
+        organization,
+        items: list[dict],
+        user: User,
+    ) -> None:
+        seen_documents: set[UUID] = set()
+        normalized: list[dict] = []
+        for index, raw in enumerate(items):
+            document_id = raw.get('document_id')
+            if document_id is None:
+                raise ValidationServiceError('Each policy item needs a document.', code='invalid_policy_item')
+            document_uuid = UUID(str(document_id))
+            if document_uuid in seen_documents:
+                raise ValidationServiceError('Duplicate documents are not allowed in a policy.', code='duplicate_document')
+            seen_documents.add(document_uuid)
+            document = DocumentDefinition.objects.filter(
+                Q(organization=organization) | Q(organization__isnull=True),
+                id=document_uuid,
+                is_active=True,
+            ).first()
+            if document is None:
+                raise NotFoundServiceError('Document not found.', code='document_not_found')
+            normalized.append(
+                {
+                    'document': document,
+                    'display_order': int(raw.get('display_order', index) or index),
+                    'is_required': bool(raw.get('is_required', True)),
+                    'allow_multiple': bool(raw.get('allow_multiple', False)),
+                    'verification_required': bool(raw.get('verification_required', True)),
+                    'requires_expiry': bool(raw.get('requires_expiry', False)),
+                }
+            )
+        policy.items.all().delete()
+        DocumentPolicyItem.objects.bulk_create(
+            [
+                DocumentPolicyItem(
+                    policy=policy,
+                    document=row['document'],
+                    display_order=row['display_order'],
+                    is_required=row['is_required'],
+                    allow_multiple=row['allow_multiple'],
+                    verification_required=row['verification_required'],
+                    requires_expiry=row['requires_expiry'],
+                    created_by=user,
+                    updated_by=user,
+                )
+                for row in normalized
+            ]
+        )
+
     # ── Serialization / helpers ─────────────────────────────────────────────
+
+    @classmethod
+    def serialize_document_category(cls, item: DocumentCategory) -> dict:
+        return {
+            'id': str(item.id),
+            'name': item.name,
+            'description': item.description,
+            'display_order': item.display_order,
+            'is_active': item.is_active,
+            'created_at': item.created_at.isoformat(),
+            'updated_at': item.updated_at.isoformat(),
+        }
+
+    @classmethod
+    def serialize_document_definition(cls, item: DocumentDefinition) -> dict:
+        return {
+            'id': str(item.id),
+            'name': item.name,
+            'description': item.description,
+            'is_active': item.is_active,
+            'organization_id': str(item.organization_id) if item.organization_id else None,
+            'category_id': str(item.category_id),
+            'category_name': item.category.name if item.category_id else None,
+            'created_at': item.created_at.isoformat(),
+            'updated_at': item.updated_at.isoformat(),
+        }
+
+    @classmethod
+    def serialize_document_policy_item(cls, item: DocumentPolicyItem) -> dict:
+        document = item.document
+        return {
+            'id': str(item.id),
+            'document_id': str(item.document_id),
+            'document_name': document.name if document else None,
+            'category_id': str(document.category_id) if document else None,
+            'category_name': document.category.name if document and document.category_id else None,
+            'display_order': item.display_order,
+            'is_required': item.is_required,
+            'allow_multiple': item.allow_multiple,
+            'verification_required': item.verification_required,
+            'requires_expiry': item.requires_expiry,
+        }
+
+    @classmethod
+    def serialize_document_policy(cls, item: DocumentPolicy) -> dict:
+        items = sorted(item.items.all(), key=lambda row: (row.display_order, str(row.id)))
+        return {
+            'id': str(item.id),
+            'name': item.name,
+            'description': item.description,
+            'is_default': item.is_default,
+            'is_active': item.is_active,
+            'organization_id': str(item.organization_id),
+            'employee_type_id': str(item.employee_type_id),
+            'employee_type_name': item.employee_type.name if item.employee_type_id else None,
+            'item_count': len(items),
+            'items': [cls.serialize_document_policy_item(row) for row in items],
+            'created_at': item.created_at.isoformat(),
+            'updated_at': item.updated_at.isoformat(),
+        }
 
     @classmethod
     def serialize_department(cls, item: Department) -> dict:

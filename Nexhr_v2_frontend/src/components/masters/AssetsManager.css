@@ -1,0 +1,201 @@
+.assets-manager {
+  min-width: 0;
+}
+
+.assets-name {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.assets-name strong {
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.assets-name span {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.assets-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-brand-500) 12%, transparent);
+  color: var(--color-brand-700, var(--color-brand-600));
+  font-size: 0.78rem;
+  font-weight: 550;
+}
+
+.assets-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.assets-status.is-ok {
+  background: color-mix(in srgb, var(--color-success-600) 14%, transparent);
+  color: var(--color-success-700, var(--color-success-600));
+}
+
+.assets-status.is-info {
+  background: color-mix(in srgb, var(--color-brand-500) 14%, transparent);
+  color: var(--color-brand-700, var(--color-brand-600));
+}
+
+.assets-status.is-bad {
+  background: color-mix(in srgb, var(--color-danger-600) 14%, transparent);
+  color: var(--color-danger-600);
+}
+
+.assets-status.is-muted {
+  background: color-mix(in srgb, var(--color-text-muted) 12%, transparent);
+  color: var(--color-text-muted);
+}
+
+.assets-actions {
+  display: inline-flex;
+  gap: 0.15rem;
+  justify-content: flex-end;
+}
+
+.assets-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+}
+
+.assets-filter select {
+  min-width: 9rem;
+  height: 2.25rem;
+  padding: 0 0.65rem;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+}
+
+.assets-banner {
+  margin: 0 0 0.85rem;
+  padding: 0.7rem 0.85rem;
+  border-radius: var(--radius-md);
+  font-size: 0.86rem;
+}
+
+.assets-banner--error {
+  background: color-mix(in srgb, var(--color-danger-600) 12%, transparent);
+  color: var(--color-danger-600);
+}
+
+.assets-banner--warn {
+  background: color-mix(in srgb, #c9851a 14%, transparent);
+  color: #9a6710;
+}
+
+.assets-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 1rem;
+  font-size: 0.86rem;
+  color: var(--color-text-muted);
+}
+
+.assets-form {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.assets-form__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.assets-field {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.84rem;
+}
+
+.assets-field--full {
+  grid-column: 1 / -1;
+}
+
+.assets-field span {
+  color: var(--color-text-muted);
+  font-weight: 550;
+}
+
+.assets-field input,
+.assets-field select,
+.assets-field textarea {
+  width: 100%;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  font: inherit;
+}
+
+.assets-field em {
+  font-style: normal;
+  font-size: 0.78rem;
+  color: var(--color-danger-600);
+}
+
+.assets-type-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.assets-type-list {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.assets-type-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.assets-type-list strong {
+  display: block;
+  font-size: 0.9rem;
+}
+
+.assets-type-list span {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+}
+
+.assets-type-list__empty {
+  justify-content: center;
+  color: var(--color-text-muted);
+  font-size: 0.86rem;
+}
+
+@media (max-width: 720px) {
+  .assets-form__grid {
+    grid-template-columns: 1fr;
+  }
+}

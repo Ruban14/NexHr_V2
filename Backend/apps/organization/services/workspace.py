@@ -151,12 +151,16 @@ class WorkspaceService:
             'city': 'city',
             'timezone': 'timezone',
             'currency': 'currency',
+            'notice_period_days': 'notice_period_days',
         }
         for payload_key, model_field in field_map.items():
             if payload_key in payload:
                 value = payload[payload_key]
                 if payload_key == 'currency' and value:
                     value = str(value).upper()
+                if payload_key == 'notice_period_days':
+                    setattr(organization, model_field, int(value))
+                    continue
                 setattr(organization, model_field, value if value is not None else '')
 
         if 'legal_name' in payload and not organization.display_name:
@@ -330,6 +334,7 @@ class WorkspaceService:
             'city': organization.city,
             'timezone': organization.timezone,
             'currency': organization.currency,
+            'notice_period_days': organization.notice_period_days,
             'is_active': organization.is_active,
             'owner_id': str(organization.owner_id),
             'can_edit': can_edit,

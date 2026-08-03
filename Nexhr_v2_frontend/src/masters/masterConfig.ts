@@ -194,7 +194,11 @@ export type SetupNavItem = {
     | 'shifts'
     | 'work-weeks'
     | 'leave-types'
-    | 'holidays';
+    | 'holidays'
+    | 'documents'
+    | 'document-policies'
+    | 'assets'
+    | 'leave-policies';
 };
 
 export const SETUP_NAV: SetupNavItem[] = [
@@ -252,6 +256,30 @@ export const SETUP_NAV: SetupNavItem[] = [
     label: 'Holidays',
     description: 'Calendars & dates',
     icon: 'holidays',
+  },
+  {
+    to: '/app/setup/documents',
+    label: 'Documents',
+    description: 'Document catalog',
+    icon: 'documents',
+  },
+  {
+    to: '/app/setup/document-policies',
+    label: 'Doc Policies',
+    description: 'Required checklists',
+    icon: 'document-policies',
+  },
+  {
+    to: '/app/setup/assets',
+    label: 'Assets',
+    description: 'Inventory & tracking',
+    icon: 'assets',
+  },
+  {
+    to: '/app/setup/leave-policies',
+    label: 'Leave Policies',
+    description: 'Upfront or monthly accrual',
+    icon: 'leave-policies',
   },
 ];
 
@@ -311,5 +339,33 @@ export const SETUP_MODULES = [
     title: 'Holidays',
     description: 'Build yearly holiday calendars and add dates for each observance.',
     icon: 'holidays' as const,
+  },
+  {
+    step: '09',
+    to: '/app/setup/documents',
+    title: 'Documents',
+    description: 'Catalog document types like Aadhaar, PAN, and education certificates.',
+    icon: 'documents' as const,
+  },
+  {
+    step: '10',
+    to: '/app/setup/document-policies',
+    title: 'Document Policies',
+    description: 'Drag documents into checklists for each employee type.',
+    icon: 'document-policies' as const,
+  },
+  {
+    step: '11',
+    to: '/app/setup/assets',
+    title: 'Assets',
+    description: 'Catalog company assets and prepare them for employee assignment.',
+    icon: 'assets' as const,
+  },
+  {
+    step: '12',
+    to: '/app/setup/leave-policies',
+    title: 'Leave Policies',
+    description: 'Upfront annual leave or monthly accrual per employee type.',
+    icon: 'leave-policies' as const,
   },
 ];

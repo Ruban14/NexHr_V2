@@ -90,6 +90,42 @@ function HolidaysIcon({ className }: IconProps) {
   );
 }
 
+function DocumentsIcon({ className }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+      <path d="M7 3.5h7.5L19 8v12.5a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z" />
+      <path d="M14 3.5V8h5M9 12h6M9 15.5h6M9 19h3.5" />
+    </svg>
+  );
+}
+
+function DocumentPoliciesIcon({ className }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+      <path d="M8 4h8a2 2 0 0 1 2 2v14l-6-3-6 3V6a2 2 0 0 1 2-2z" />
+      <path d="M10 9.5h4M10 13h4" />
+    </svg>
+  );
+}
+
+function AssetsIcon({ className }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+      <rect x="3.5" y="7" width="17" height="12" rx="2" />
+      <path d="M8 7V5.5A1.5 1.5 0 0 1 9.5 4h5A1.5 1.5 0 0 1 16 5.5V7M8 12h8M8 15.5h5" />
+    </svg>
+  );
+}
+
+function LeavePoliciesIcon({ className }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+      <path d="M8 4h8a2 2 0 0 1 2 2v14l-6-3-6 3V6a2 2 0 0 1 2-2z" />
+      <path d="M10 9.5h4M10 13h2.5M10 16.5h3" />
+    </svg>
+  );
+}
+
 const ICONS: Record<SetupNavItem['icon'], (props: IconProps) => ReactElement> = {
   overview: OverviewIcon,
   departments: DepartmentsIcon,
@@ -100,6 +136,10 @@ const ICONS: Record<SetupNavItem['icon'], (props: IconProps) => ReactElement> = 
   'work-weeks': WorkWeeksIcon,
   'leave-types': LeaveTypesIcon,
   holidays: HolidaysIcon,
+  documents: DocumentsIcon,
+  'document-policies': DocumentPoliciesIcon,
+  assets: AssetsIcon,
+  'leave-policies': LeavePoliciesIcon,
 };
 
 export function SetupNavIcon({ name, className }: { name: SetupNavItem['icon']; className?: string }) {

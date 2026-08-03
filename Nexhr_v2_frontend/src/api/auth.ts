@@ -1,15 +1,30 @@
 import { apiRequest, buildQuery } from './client';
 import type {
   AccessType,
+  AssetRecord,
+  AssetType,
+  AttendanceListResponse,
+  AttendanceRecord,
+  AttendanceSession,
   BranchMembership,
   Department,
   Designation,
+  DocumentCategory,
+  DocumentDefinition,
+  DocumentPolicy,
+  DocumentCompliance,
+  EmployeeAssetAssignment,
+  EmployeeDocumentRecord,
   EmployeeCreateRequest,
+  EmployeeLeaveBalance,
+  EmployeeLeaveLog,
   EmployeeRecord,
   EmployeeType,
   Holiday,
   HolidayCalendar,
   IndustryType,
+  LeaveApplication,
+  LeavePolicy,
   LeaveType,
   LoginResponse,
   MasterListParams,
@@ -321,6 +336,562 @@ export const organizationApi = {
   deleteHoliday: (token: string, id: string) =>
     apiRequest<void>(`/organization/holidays/${id}`, { token, method: 'DELETE' }),
 
+  listDocumentCategories: (token: string, params: { search?: string; is_active?: boolean } = {}) =>
+    apiRequest<DocumentCategory[]>(
+      `/organization/document-categories${buildQuery(params)}`,
+      { token },
+    ),
+
+  createDocumentCategory: (
+    token: string,
+    payload: { name: string; description?: string; display_order?: number },
+  ) => apiRequest<DocumentCategory>('/organization/document-categories', { token, body: payload }),
+
+  updateDocumentCategory: (
+    token: string,
+    id: string,
+    payload: { name?: string; description?: string; display_order?: number; is_active?: boolean },
+  ) =>
+    apiRequest<DocumentCategory>(`/organization/document-categories/${id}`, {
+      token,
+      method: 'PATCH',
+      body: payload,
+    }),
+
+  listDocumentDefinitions: (
+    token: string,
+    params: MasterListParams & { category_id?: string } = {},
+  ) =>
+    apiRequest<PaginatedResponse<DocumentDefinition>>(
+      `/organization/document-definitions${buildQuery(params)}`,
+      { token },
+    ),
+
+  createDocumentDefinition: (
+    token: string,
+    payload: { name: string; category_id: string; description?: string },
+  ) => apiRequest<DocumentDefinition>('/organization/document-definitions', { token, body: payload }),
+
+  updateDocumentDefinition: (
+    token: string,
+    id: string,
+    payload: {
+      name?: string;
+      category_id?: string;
+      description?: string;
+      is_active?: boolean;
+    },
+  ) =>
+    apiRequest<DocumentDefinition>(`/organization/document-definitions/${id}`, {
+      token,
+      method: 'PATCH',
+      body: payload,
+    }),
+
+  deleteDocumentDefinition: (token: string, id: string) =>
+    apiRequest<void>(`/organization/document-definitions/${id}`, { token, method: 'DELETE' }),
+
+  listDocumentPolicies: (
+    token: string,
+    params: MasterListParams & { employee_type_id?: string } = {},
+  ) =>
+    apiRequest<PaginatedResponse<DocumentPolicy>>(
+      `/organization/document-policies${buildQuery(params)}`,
+      { token },
+    ),
+
+  getDocumentPolicy: (token: string, id: string) =>
+    apiRequest<DocumentPolicy>(`/organization/document-policies/${id}`, { token }),
+
+  createDocumentPolicy: (
+    token: string,
+    payload: {
+      name: string;
+      employee_type_id: string;
+      description?: string;
+      is_default?: boolean;
+      items?: Array<{
+        document_id: string;
+        display_order?: number;
+        is_required?: boolean;
+        allow_multiple?: boolean;
+        verification_required?: boolean;
+        requires_expiry?: boolean;
+      }>;
+    },
+  ) => apiRequest<DocumentPolicy>('/organization/document-policies', { token, body: payload }),
+
+  updateDocumentPolicy: (
+    token: string,
+    id: string,
+    payload: {
+      name?: string;
+      employee_type_id?: string;
+      description?: string;
+      is_default?: boolean;
+      is_active?: boolean;
+      items?: Array<{
+        document_id: string;
+        display_order?: number;
+        is_required?: boolean;
+        allow_multiple?: boolean;
+        verification_required?: boolean;
+        requires_expiry?: boolean;
+      }>;
+    },
+  ) =>
+    apiRequest<DocumentPolicy>(`/organization/document-policies/${id}`, {
+      token,
+      method: 'PATCH',
+      body: payload,
+    }),
+
+  deleteDocumentPolicy: (token: string, id: string) =>
+    apiRequest<void>(`/organization/document-policies/${id}`, { token, method: 'DELETE' }),
+
+  listEmployeeDocuments: (token: string, employeeId: string) =>
+    apiRequest<EmployeeDocumentRecord[]>(`/organization/employees/${employeeId}/documents`, {
+      token,
+    }),
+
+  checkEmployeeDocumentCompliance: (token: string, employeeId: string) =>
+    apiRequest<DocumentCompliance>(
+      `/organization/employees/${employeeId}/documents/compliance`,
+      { token },
+    ),
+
+  uploadEmployeeDocument: (token: string, employeeId: string, payload: FormData) =>
+    apiRequest<EmployeeDocumentRecord>(`/organization/employees/${employeeId}/documents`, {
+      token,
+      body: payload,
+    }),
+
+  reviewEmployeeDocument: (
+    token: string,
+    employeeId: string,
+    documentId: string,
+    payload: { approve: boolean; remarks?: string },
+  ) =>
+    apiRequest<EmployeeDocumentRecord>(
+      `/organization/employees/${employeeId}/documents/${documentId}/review`,
+      { token, body: payload },
+    ),
+
+  deleteEmployeeDocument: (token: string, employeeId: string, documentId: string) =>
+    apiRequest<void>(`/organization/employees/${employeeId}/documents/${documentId}`, {
+      token,
+      method: 'DELETE',
+    }),
+
+  listAssetTypes: (token: string, params: { is_active?: boolean } = {}) =>
+    apiRequest<AssetType[]>(`/organization/asset-types${buildQuery(params)}`, { token }),
+
+  createAssetType: (
+    token: string,
+    payload: { name: string; description?: string },
+  ) => apiRequest<AssetType>('/organization/asset-types', { token, body: payload }),
+
+  updateAssetType: (
+    token: string,
+    id: string,
+    payload: { name?: string; description?: string; is_active?: boolean },
+  ) =>
+    apiRequest<AssetType>(`/organization/asset-types/${id}`, {
+      token,
+      method: 'PATCH',
+      body: payload,
+    }),
+
+  deleteAssetType: (token: string, id: string) =>
+    apiRequest<void>(`/organization/asset-types/${id}`, { token, method: 'DELETE' }),
+
+  listAssets: (
+    token: string,
+    params: MasterListParams & { asset_type_id?: string; status?: string } = {},
+  ) =>
+    apiRequest<PaginatedResponse<AssetRecord>>(
+      `/organization/assets${buildQuery(params)}`,
+      { token },
+    ),
+
+  listAvailableAssets: (token: string, search = '') =>
+    apiRequest<AssetRecord[]>(
+      `/organization/assets/available${buildQuery({ search: search || undefined })}`,
+      { token },
+    ),
+
+  createAsset: (
+    token: string,
+    payload: {
+      asset_type_id: string;
+      asset_code: string;
+      name: string;
+      brand?: string;
+      model?: string;
+      serial_number?: string;
+      purchase_date?: string | null;
+      warranty_expiry?: string | null;
+      status?: string;
+      remarks?: string;
+    },
+  ) => apiRequest<AssetRecord>('/organization/assets', { token, body: payload }),
+
+  updateAsset: (
+    token: string,
+    id: string,
+    payload: {
+      asset_type_id?: string;
+      asset_code?: string;
+      name?: string;
+      brand?: string;
+      model?: string;
+      serial_number?: string;
+      purchase_date?: string | null;
+      warranty_expiry?: string | null;
+      status?: string;
+      remarks?: string;
+      is_active?: boolean;
+    },
+  ) =>
+    apiRequest<AssetRecord>(`/organization/assets/${id}`, {
+      token,
+      method: 'PATCH',
+      body: payload,
+    }),
+
+  deleteAsset: (token: string, id: string) =>
+    apiRequest<void>(`/organization/assets/${id}`, { token, method: 'DELETE' }),
+
+  listEmployeeAssetAssignments: (token: string, employeeId: string) =>
+    apiRequest<EmployeeAssetAssignment[]>(
+      `/organization/employees/${employeeId}/asset-assignments`,
+      { token },
+    ),
+
+  assignEmployeeAsset: (
+    token: string,
+    employeeId: string,
+    payload: {
+      asset_id: string;
+      assigned_at?: string | null;
+      expected_return_at?: string | null;
+      remarks?: string;
+    },
+  ) =>
+    apiRequest<EmployeeAssetAssignment>(
+      `/organization/employees/${employeeId}/asset-assignments`,
+      { token, body: payload },
+    ),
+
+  revokeEmployeeAsset: (
+    token: string,
+    employeeId: string,
+    assignmentId: string,
+    payload: { returned_at?: string | null; remarks?: string; mark_lost?: boolean } = {},
+  ) =>
+    apiRequest<EmployeeAssetAssignment>(
+      `/organization/employees/${employeeId}/asset-assignments/${assignmentId}/revoke`,
+      { token, body: payload },
+    ),
+
+  listLeavePolicies: (
+    token: string,
+    params: MasterListParams & { employee_type_id?: string } = {},
+  ) =>
+    apiRequest<PaginatedResponse<LeavePolicy>>(
+      `/organization/leave-policies${buildQuery(params)}`,
+      { token },
+    ),
+
+  getLeavePolicy: (token: string, id: string) =>
+    apiRequest<LeavePolicy>(`/organization/leave-policies/${id}`, { token }),
+
+  createLeavePolicy: (
+    token: string,
+    payload: {
+      code: string;
+      name: string;
+      employee_type_id: string;
+      description?: string;
+      effective_from: string;
+      effective_to?: string | null;
+      is_default?: boolean;
+      rules?: Array<{
+        leave_type_id: string;
+        allocation_frequency?: string;
+        allocation_quantity?: string | number;
+        annual_limit?: string | number;
+        carry_forward_allowed?: boolean;
+        carry_forward_limit?: string | number;
+        encashment_allowed?: boolean;
+        encashment_limit?: string | number;
+        allow_half_day?: boolean;
+        allow_negative_balance?: boolean;
+        minimum_service_days?: number;
+        maximum_consecutive_days?: number | null;
+        is_active?: boolean;
+      }>;
+    },
+  ) => apiRequest<LeavePolicy>('/organization/leave-policies', { token, body: payload }),
+
+  updateLeavePolicy: (
+    token: string,
+    id: string,
+    payload: {
+      code?: string;
+      name?: string;
+      employee_type_id?: string;
+      description?: string;
+      effective_from?: string;
+      effective_to?: string | null;
+      is_default?: boolean;
+      is_active?: boolean;
+      rules?: Array<{
+        leave_type_id: string;
+        allocation_frequency?: string;
+        allocation_quantity?: string | number;
+        annual_limit?: string | number;
+        carry_forward_allowed?: boolean;
+        carry_forward_limit?: string | number;
+        encashment_allowed?: boolean;
+        encashment_limit?: string | number;
+        allow_half_day?: boolean;
+        allow_negative_balance?: boolean;
+        minimum_service_days?: number;
+        maximum_consecutive_days?: number | null;
+        is_active?: boolean;
+      }>;
+    },
+  ) =>
+    apiRequest<LeavePolicy>(`/organization/leave-policies/${id}`, {
+      token,
+      method: 'PATCH',
+      body: payload,
+    }),
+
+  deleteLeavePolicy: (token: string, id: string) =>
+    apiRequest<void>(`/organization/leave-policies/${id}`, { token, method: 'DELETE' }),
+
+  listEmployeeLeaveBalances: (token: string, employeeId: string) =>
+    apiRequest<EmployeeLeaveBalance[]>(
+      `/organization/employees/${employeeId}/leave-balances`,
+      { token },
+    ),
+
+  allocateEmployeeLeave: (
+    token: string,
+    employeeId: string,
+    payload: { leave_type_id: string; quantity: string | number; remarks?: string },
+  ) =>
+    apiRequest<EmployeeLeaveBalance>(
+      `/organization/employees/${employeeId}/leave-balances/allocate`,
+      { token, body: payload },
+    ),
+
+  adjustEmployeeLeave: (
+    token: string,
+    employeeId: string,
+    payload: { leave_type_id: string; quantity: string | number; remarks?: string },
+  ) =>
+    apiRequest<EmployeeLeaveBalance>(
+      `/organization/employees/${employeeId}/leave-balances/adjust`,
+      { token, body: payload },
+    ),
+
+  seedEmployeeLeaveBalances: (token: string, employeeId: string) =>
+    apiRequest<EmployeeLeaveBalance[]>(
+      `/organization/employees/${employeeId}/leave-balances/seed`,
+      { token, body: {} },
+    ),
+
+  listEmployeeLeaveApplications: (token: string, employeeId: string, status?: string) =>
+    apiRequest<LeaveApplication[]>(
+      `/organization/employees/${employeeId}/leave-applications${buildQuery({
+        status: status || undefined,
+      })}`,
+      { token },
+    ),
+
+  createEmployeeLeaveApplication: (token: string, employeeId: string, payload: FormData) =>
+    apiRequest<LeaveApplication>(`/organization/employees/${employeeId}/leave-applications`, {
+      token,
+      body: payload,
+    }),
+
+  reviewEmployeeLeaveApplication: (
+    token: string,
+    employeeId: string,
+    applicationId: string,
+    payload: { approve: boolean; remarks?: string },
+  ) =>
+    apiRequest<LeaveApplication>(
+      `/organization/employees/${employeeId}/leave-applications/${applicationId}/review`,
+      { token, body: payload },
+    ),
+
+  listLeaveApprovals: (token: string, status?: string) =>
+    apiRequest<{ pending_count: number; items: LeaveApplication[] }>(
+      `/organization/leave-approvals${buildQuery({ status: status || undefined })}`,
+      { token },
+    ),
+
+  reviewLeaveApproval: (
+    token: string,
+    applicationId: string,
+    payload: { approve: boolean; remarks?: string },
+  ) =>
+    apiRequest<LeaveApplication>(`/organization/leave-approvals/${applicationId}/review`, {
+      token,
+      body: payload,
+    }),
+
+  cancelEmployeeLeaveApplication: (
+    token: string,
+    employeeId: string,
+    applicationId: string,
+    payload: { remarks?: string } = {},
+  ) =>
+    apiRequest<LeaveApplication>(
+      `/organization/employees/${employeeId}/leave-applications/${applicationId}/cancel`,
+      { token, body: payload },
+    ),
+
+  listEmployeeLeaveLogs: (token: string, employeeId: string) =>
+    apiRequest<EmployeeLeaveLog[]>(`/organization/employees/${employeeId}/leave-logs`, {
+      token,
+    }),
+
+  listAttendance: (
+    token: string,
+    params: {
+      date?: string;
+      date_from?: string;
+      date_to?: string;
+      status?: string;
+      employee_id?: string;
+      search?: string;
+    } = {},
+  ) =>
+    apiRequest<AttendanceListResponse>(`/organization/attendance${buildQuery(params)}`, {
+      token,
+    }),
+
+  getTodayAttendance: (token: string, employeeId?: string) =>
+    apiRequest<AttendanceRecord>(
+      `/organization/attendance/today${buildQuery({
+        employee_id: employeeId || undefined,
+      })}`,
+      { token },
+    ),
+
+  getAttendanceDetail: (token: string, attendanceId: string) =>
+    apiRequest<AttendanceRecord>(`/organization/attendance/${attendanceId}`, { token }),
+
+  attendanceCheckIn: (token: string, payload: { remarks?: string; source?: string } = {}) =>
+    apiRequest<AttendanceRecord>('/organization/attendance/check-in', { token, body: payload }),
+
+  attendanceCheckOut: (token: string, payload: { remarks?: string } = {}) =>
+    apiRequest<AttendanceRecord>('/organization/attendance/check-out', { token, body: payload }),
+
+  attendanceBreakStart: (token: string, payload: { remarks?: string } = {}) =>
+    apiRequest<AttendanceRecord>('/organization/attendance/break-start', { token, body: payload }),
+
+  attendanceBreakEnd: (token: string, payload: { remarks?: string } = {}) =>
+    apiRequest<AttendanceRecord>('/organization/attendance/break-end', { token, body: payload }),
+
+  listEmployeeAttendance: (
+    token: string,
+    employeeId: string,
+    params: { date_from?: string; date_to?: string } = {},
+  ) =>
+    apiRequest<AttendanceRecord[]>(
+      `/organization/employees/${employeeId}/attendance${buildQuery(params)}`,
+      { token },
+    ),
+
+  listEmployeeAttendanceSessions: (
+    token: string,
+    employeeId: string,
+    params: { date_from?: string; date_to?: string } = {},
+  ) =>
+    apiRequest<AttendanceSession[]>(
+      `/organization/employees/${employeeId}/attendance/sessions${buildQuery(params)}`,
+      { token },
+    ),
+
+  employeeAttendanceCheckIn: (
+    token: string,
+    employeeId: string,
+    payload: { remarks?: string; source?: string } = {},
+  ) =>
+    apiRequest<AttendanceRecord>(`/organization/employees/${employeeId}/attendance/check-in`, {
+      token,
+      body: payload,
+    }),
+
+  employeeAttendanceCheckOut: (
+    token: string,
+    employeeId: string,
+    payload: { remarks?: string } = {},
+  ) =>
+    apiRequest<AttendanceRecord>(`/organization/employees/${employeeId}/attendance/check-out`, {
+      token,
+      body: payload,
+    }),
+
+  employeeAttendanceBreakStart: (
+    token: string,
+    employeeId: string,
+    payload: { remarks?: string } = {},
+  ) =>
+    apiRequest<AttendanceRecord>(`/organization/employees/${employeeId}/attendance/break-start`, {
+      token,
+      body: payload,
+    }),
+
+  employeeAttendanceBreakEnd: (
+    token: string,
+    employeeId: string,
+    payload: { remarks?: string } = {},
+  ) =>
+    apiRequest<AttendanceRecord>(`/organization/employees/${employeeId}/attendance/break-end`, {
+      token,
+      body: payload,
+    }),
+
+  manualEmployeeAttendance: (
+    token: string,
+    employeeId: string,
+    payload: {
+      attendance_date: string;
+      status?: string;
+      check_in?: string | null;
+      check_out?: string | null;
+      remarks?: string;
+      session_remarks?: string;
+    },
+  ) =>
+    apiRequest<AttendanceRecord>(`/organization/employees/${employeeId}/attendance/manual`, {
+      token,
+      body: payload,
+    }),
+
+  listAttendanceApprovals: (token: string, status?: string) =>
+    apiRequest<{ pending_count: number; items: AttendanceRecord[] }>(
+      `/organization/attendance-approvals${buildQuery({ status: status || undefined })}`,
+      { token },
+    ),
+
+  reviewAttendanceApproval: (
+    token: string,
+    attendanceId: string,
+    payload: { approve: boolean; remarks?: string },
+  ) =>
+    apiRequest<AttendanceRecord>(`/organization/attendance-approvals/${attendanceId}/review`, {
+      token,
+      body: payload,
+    }),
+
   listEmployees: (
     token: string,
     params: MasterListParams & { lifecycle_status_id?: string } = {},
@@ -346,7 +917,7 @@ export const organizationApi = {
   transitionEmployee: (
     token: string,
     id: string,
-    payload: { to_status_id: string; remarks?: string },
+    payload: { to_status_id: string; remarks?: string; exit_date?: string },
   ) =>
     apiRequest<EmployeeRecord>(`/organization/employees/${id}/transition`, {
       token,

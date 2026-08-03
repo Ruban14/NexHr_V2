@@ -121,6 +121,7 @@ export type Organization = {
   city: string;
   timezone: string;
   currency: string;
+  notice_period_days: number;
   is_active: boolean;
   owner_id: string;
   can_edit: boolean;
@@ -142,6 +143,7 @@ export type OrganizationUpdateRequest = {
   city?: string;
   timezone?: string;
   currency?: string;
+  notice_period_days?: number;
 };
 
 export type EmployeeBankDetail = {
@@ -151,6 +153,21 @@ export type EmployeeBankDetail = {
   account_number: string;
   ifsc_code: string;
   is_primary: boolean;
+};
+
+export type EmployeeTaxDetail = {
+  id?: string;
+  pan_number: string;
+  aadhaar_number: string;
+  uan_number: string;
+  pf_number: string;
+  esi_number: string;
+  tax_regime: 'old' | 'new' | string;
+  tax_identification_number: string;
+  is_pf_applicable: boolean;
+  is_esi_applicable: boolean;
+  professional_tax_applicable: boolean;
+  labour_welfare_fund_applicable: boolean;
 };
 
 export type EmployeeEducationDetail = {
@@ -306,6 +323,354 @@ export type Holiday = {
   updated_at: string;
 };
 
+export type DocumentCategory = {
+  id: string;
+  name: string;
+  description: string;
+  display_order: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type DocumentDefinition = {
+  id: string;
+  name: string;
+  description: string;
+  is_active: boolean;
+  organization_id: string | null;
+  category_id: string;
+  category_name: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type DocumentPolicyItem = {
+  id?: string;
+  document_id: string;
+  document_name?: string | null;
+  category_id?: string | null;
+  category_name?: string | null;
+  display_order: number;
+  is_required: boolean;
+  allow_multiple: boolean;
+  verification_required: boolean;
+  requires_expiry: boolean;
+};
+
+export type DocumentPolicy = {
+  id: string;
+  name: string;
+  description: string;
+  is_default: boolean;
+  is_active: boolean;
+  organization_id: string;
+  employee_type_id: string;
+  employee_type_name: string | null;
+  item_count: number;
+  items: DocumentPolicyItem[];
+  created_at: string;
+  updated_at: string;
+};
+
+export type EmployeeDocumentRecord = {
+  id: string;
+  employee_id: string;
+  document_id: string;
+  document_name: string | null;
+  category_id: string | null;
+  category_name: string | null;
+  file_id: string;
+  file_name: string | null;
+  file_url: string;
+  file_size: number;
+  mime_type: string;
+  issue_date: string | null;
+  expiry_date: string | null;
+  status: 'pending' | 'approved' | 'rejected' | string;
+  remarks: string;
+  verified_by_id: string | null;
+  verified_by_name: string | null;
+  verified_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type DocumentComplianceItem = {
+  policy_item_id: string;
+  document_id: string;
+  document_name: string;
+  category_name: string | null;
+  is_required: boolean;
+  allow_multiple: boolean;
+  verification_required: boolean;
+  requires_expiry: boolean;
+  display_order: number;
+  status: 'missing' | 'optional_missing' | 'pending' | 'approved' | 'expired' | 'rejected' | string;
+  latest_document: EmployeeDocumentRecord | null;
+  upload_count: number;
+};
+
+export type DocumentCompliance = {
+  policy: {
+    id: string;
+    name: string;
+    description: string;
+    is_default: boolean;
+    employee_type_id: string;
+    employee_type_name: string | null;
+  } | null;
+  overall_status: 'compliant' | 'incomplete' | 'pending_review' | 'no_policy' | string;
+  message: string;
+  summary: {
+    required: number;
+    approved: number;
+    pending: number;
+    missing: number;
+    expired: number;
+    rejected: number;
+    optional: number;
+  };
+  items: DocumentComplianceItem[];
+  pending: EmployeeDocumentRecord[];
+  uploads: EmployeeDocumentRecord[];
+};
+
+export type AssetType = {
+  id: string;
+  name: string;
+  description: string;
+  is_active: boolean;
+  organization_id: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AssetStatus = 'available' | 'assigned' | 'lost' | 'damaged' | 'retired';
+
+export type AssetRecord = {
+  id: string;
+  organization_id: string;
+  asset_type_id: string;
+  asset_type_name: string | null;
+  asset_code: string;
+  name: string;
+  brand: string;
+  model: string;
+  serial_number: string;
+  purchase_date: string | null;
+  warranty_expiry: string | null;
+  status: AssetStatus | string;
+  remarks: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AssetAssignmentStatus = 'active' | 'returned' | 'lost';
+
+export type EmployeeAssetAssignment = {
+  id: string;
+  organization_id: string;
+  employee_id: string;
+  asset_id: string;
+  asset_code: string | null;
+  asset_name: string | null;
+  asset_type_name: string | null;
+  serial_number: string | null;
+  assigned_at: string | null;
+  expected_return_at: string | null;
+  returned_at: string | null;
+  issued_by_id: string | null;
+  issued_by_name: string | null;
+  received_by_id: string | null;
+  received_by_name: string | null;
+  status: AssetAssignmentStatus | string;
+  remarks: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type LeaveAllocationFrequency = 'yearly' | 'monthly' | 'quarterly';
+
+export type LeavePolicyRule = {
+  id?: string;
+  leave_type_id: string;
+  leave_type_name?: string | null;
+  allocation_frequency: LeaveAllocationFrequency | string;
+  allocation_quantity: string;
+  annual_limit: string;
+  carry_forward_allowed: boolean;
+  carry_forward_limit: string;
+  encashment_allowed: boolean;
+  encashment_limit: string;
+  allow_half_day: boolean;
+  allow_negative_balance: boolean;
+  minimum_service_days: number;
+  maximum_consecutive_days: number | null;
+  is_active: boolean;
+};
+
+export type LeavePolicy = {
+  id: string;
+  organization_id: string;
+  employee_type_id: string;
+  employee_type_name: string | null;
+  code: string;
+  name: string;
+  description: string;
+  effective_from: string | null;
+  effective_to: string | null;
+  is_default: boolean;
+  is_active: boolean;
+  rule_count: number;
+  rules: LeavePolicyRule[];
+  created_at: string;
+  updated_at: string;
+};
+
+export type EmployeeLeaveBalance = {
+  id: string;
+  organization_id: string;
+  employee_id: string;
+  leave_type_id: string;
+  leave_type_name: string | null;
+  allocated: string;
+  used: string;
+  balance: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type LeaveApplicationStatus =
+  | 'draft'
+  | 'pending'
+  | 'approved'
+  | 'rejected'
+  | 'cancelled';
+
+export type LeaveApplication = {
+  id: string;
+  organization_id: string;
+  employee_id: string;
+  employee_name?: string | null;
+  employee_code?: string | null;
+  employee_designation_name?: string | null;
+  leave_type_id: string;
+  leave_type_name: string | null;
+  from_date: string | null;
+  to_date: string | null;
+  number_of_days: string;
+  is_half_day: boolean;
+  reason: string;
+  attachment_url: string | null;
+  status: LeaveApplicationStatus | string;
+  approved_by_id: string | null;
+  approved_by_name: string | null;
+  approved_at: string | null;
+  remarks: string;
+  expected_approver_id?: string | null;
+  expected_approver_name?: string | null;
+  can_review?: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type EmployeeLeaveLog = {
+  id: string;
+  organization_id: string;
+  employee_id: string;
+  leave_type_id: string;
+  leave_type_name: string | null;
+  transaction_type: string;
+  quantity: string;
+  balance_before: string;
+  balance_after: string;
+  leave_application_id: string | null;
+  remarks: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AttendanceStatus =
+  | 'present'
+  | 'absent'
+  | 'half_day'
+  | 'leave'
+  | 'holiday'
+  | 'week_off';
+
+export type AttendanceBreak = {
+  id: string;
+  session_id: string;
+  break_start: string | null;
+  break_end: string | null;
+  break_duration_hours: string | null;
+  remarks: string;
+  is_open: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AttendanceSession = {
+  id: string;
+  attendance_id: string;
+  check_in: string | null;
+  check_out: string | null;
+  worked_hours: string | null;
+  source: string;
+  remarks: string;
+  is_open: boolean;
+  breaks: AttendanceBreak[];
+  created_at: string;
+  updated_at: string;
+  attendance_date?: string | null;
+  attendance_status?: string | null;
+  approval_status?: string | null;
+  is_manual_day?: boolean;
+  employee_id?: string;
+  employee_name?: string | null;
+  employee_code?: string | null;
+};
+
+export type AttendanceRecord = {
+  id: string | null;
+  organization_id: string;
+  employee_id: string;
+  employee_name?: string | null;
+  employee_code?: string | null;
+  employee_designation_name?: string | null;
+  attendance_date: string | null;
+  first_check_in: string | null;
+  last_check_out: string | null;
+  total_worked_hours: string | null;
+  total_break_hours: string | null;
+  overtime_hours: string | null;
+  status: AttendanceStatus | string | null;
+  is_manual?: boolean;
+  approval_status?: string | null;
+  approved_by_id?: string | null;
+  approved_by_name?: string | null;
+  approved_at?: string | null;
+  approval_remarks?: string;
+  expected_approver_id?: string | null;
+  expected_approver_name?: string | null;
+  can_review?: boolean;
+  remarks: string;
+  has_open_session: boolean;
+  on_break: boolean;
+  sessions: AttendanceSession[];
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+export type AttendanceListResponse = {
+  date: string;
+  present_count: number;
+  total_count: number;
+  items: AttendanceRecord[];
+};
+
 export type LifecycleStatus = {
   id: string;
   name: string;
@@ -359,6 +724,7 @@ export type EmployeeRecord = {
   bank_details?: EmployeeBankDetail[];
   education_details?: EmployeeEducationDetail[];
   job_experiences?: EmployeeJobExperience[];
+  tax_detail?: EmployeeTaxDetail;
   date_of_birth?: string | null;
   gender?: string;
   blood_group?: string;
@@ -374,6 +740,8 @@ export type EmployeeRecord = {
   is_active: boolean;
   designation_id: string | null;
   designation_name?: string | null;
+  reporting_manager_id?: string | null;
+  reporting_manager_name?: string | null;
   employee_type_id: string | null;
   employee_type_name?: string | null;
   access_type_id: string | null;

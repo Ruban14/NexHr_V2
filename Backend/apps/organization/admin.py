@@ -4,19 +4,37 @@ from django.contrib import admin
 
 from apps.organization.models import (
     AccessType,
+    Asset,
+    AssetType,
+    Attendance,
+    AttendanceBreak,
+    AttendanceSession,
     Department,
     Designation,
+    DocumentCategory,
+    DocumentDefinition,
+    DocumentPolicy,
+    DocumentPolicyItem,
     Employee,
+    EmployeeAssetAssignment,
     EmployeeBankDetail,
+    EmployeeDocument,
     EmployeeEducation,
     EmployeeJobExperience,
+    EmployeeLeaveBalance,
+    EmployeeLeaveLog,
     EmployeeLifecycleHistory,
     EmployeeLifecycleStatus,
     EmployeeLifecycleTransition,
+    EmployeeTaxDetail,
     EmployeeType,
+    File,
     Holiday,
     HolidayCalendar,
     IndustryType,
+    LeaveApplication,
+    LeavePolicy,
+    LeavePolicyRule,
     LeaveType,
     Organization,
     OrganizationBranch,
@@ -133,6 +151,25 @@ class EmployeeJobExperienceInline(admin.TabularInline):
     )
 
 
+class EmployeeTaxDetailInline(admin.StackedInline):
+    model = EmployeeTaxDetail
+    extra = 0
+    max_num = 1
+    fields = (
+        'pan_number',
+        'aadhaar_number',
+        'uan_number',
+        'pf_number',
+        'esi_number',
+        'tax_regime',
+        'tax_identification_number',
+        'is_pf_applicable',
+        'is_esi_applicable',
+        'professional_tax_applicable',
+        'labour_welfare_fund_applicable',
+    )
+
+
 @admin.register(Employee)
 class EmployeeAdmin(admin.ModelAdmin):
     list_display = (
@@ -158,7 +195,12 @@ class EmployeeAdmin(admin.ModelAdmin):
         'emergency_contact_phone',
         'user__email',
     )
-    inlines = (EmployeeBankDetailInline, EmployeeEducationInline, EmployeeJobExperienceInline)
+    inlines = (
+        EmployeeBankDetailInline,
+        EmployeeEducationInline,
+        EmployeeJobExperienceInline,
+        EmployeeTaxDetailInline,
+    )
     fieldsets = (
         (
             None,
@@ -224,6 +266,7 @@ class EmployeeAdmin(admin.ModelAdmin):
                     'designation',
                     'employee_type',
                     'access_type',
+                    'reporting_manager',
                     'joining_date',
                     'exit_date',
                 ),
@@ -245,6 +288,7 @@ class EmployeeAdmin(admin.ModelAdmin):
         'designation',
         'employee_type',
         'access_type',
+        'reporting_manager',
         'created_by',
         'updated_by',
     )
@@ -402,6 +446,87 @@ class HolidayAdmin(admin.ModelAdmin):
     raw_id_fields = ('holiday_calendar', 'created_by', 'updated_by')
 
 
+class DocumentPolicyItemInline(admin.TabularInline):
+    model = DocumentPolicyItem
+    extra = 0
+    fields = (
+        'document',
+        'display_order',
+        'is_required',
+        'allow_multiple',
+        'verification_required',
+        'requires_expiry',
+    )
+    raw_id_fields = ('document',)
+    ordering = ('display_order', 'id')
+
+
+@admin.register(DocumentCategory)
+class DocumentCategoryAdmin(admin.ModelAdmin):
+    list_display = ('name', 'display_order', 'is_active', 'created_at')
+    list_filter = ('is_active',)
+    search_fields = ('name', 'description')
+    ordering = ('display_order', 'name')
+    readonly_fields = ('id', 'created_at', 'updated_at')
+    raw_id_fields = ('created_by', 'updated_by')
+
+
+@admin.register(DocumentDefinition)
+class DocumentDefinitionAdmin(admin.ModelAdmin):
+    list_display = ('name', 'category', 'organization', 'is_active', 'created_at')
+    list_filter = ('is_active', 'category')
+    search_fields = (
+        'name',
+        'description',
+        'category__name',
+        'organization__display_name',
+        'organization__organization_code',
+    )
+    readonly_fields = ('id', 'created_at', 'updated_at')
+    raw_id_fields = ('organization', 'category', 'created_by', 'updated_by')
+
+
+@admin.register(DocumentPolicy)
+class DocumentPolicyAdmin(admin.ModelAdmin):
+    list_display = (
+        'name',
+        'employee_type',
+        'organization',
+        'is_default',
+        'is_active',
+        'created_at',
+    )
+    list_filter = ('is_active', 'is_default', 'employee_type')
+    search_fields = (
+        'name',
+        'description',
+        'employee_type__name',
+        'organization__display_name',
+        'organization__organization_code',
+    )
+    readonly_fields = ('id', 'created_at', 'updated_at')
+    raw_id_fields = ('organization', 'employee_type', 'created_by', 'updated_by')
+    inlines = (DocumentPolicyItemInline,)
+
+
+@admin.register(DocumentPolicyItem)
+class DocumentPolicyItemAdmin(admin.ModelAdmin):
+    list_display = (
+        'policy',
+        'document',
+        'display_order',
+        'is_required',
+        'allow_multiple',
+        'verification_required',
+        'requires_expiry',
+    )
+    list_filter = ('is_required', 'allow_multiple', 'verification_required', 'requires_expiry')
+    search_fields = ('policy__name', 'document__name')
+    readonly_fields = ('id', 'created_at', 'updated_at')
+    raw_id_fields = ('policy', 'document', 'created_by', 'updated_by')
+    ordering = ('policy', 'display_order', 'id')
+
+
 @admin.register(Organization)
 class OrganizationAdmin(admin.ModelAdmin):
     list_display = (
@@ -409,6 +534,7 @@ class OrganizationAdmin(admin.ModelAdmin):
         'organization_code',
         'industry_type',
         'organization_size',
+        'notice_period_days',
         'email',
         'owner',
         'is_active',
@@ -487,3 +613,400 @@ class OrganizationMembershipAdmin(admin.ModelAdmin):
         'created_by',
         'updated_by',
     )
+
+
+@admin.register(File)
+class FileAdmin(admin.ModelAdmin):
+    list_display = (
+        'original_name',
+        'organization',
+        'extension',
+        'mime_type',
+        'file_size',
+        'is_active',
+        'is_deleted',
+        'created_at',
+    )
+    list_filter = ('is_active', 'is_deleted', 'extension')
+    search_fields = ('original_name', 'organization__display_name', 'checksum')
+    readonly_fields = ('id', 'created_at', 'updated_at', 'checksum')
+    raw_id_fields = ('organization', 'created_by', 'updated_by')
+
+
+@admin.register(EmployeeDocument)
+class EmployeeDocumentAdmin(admin.ModelAdmin):
+    list_display = (
+        'employee',
+        'document',
+        'status',
+        'issue_date',
+        'expiry_date',
+        'verified_by',
+        'verified_at',
+        'created_at',
+    )
+    list_filter = ('status',)
+    search_fields = (
+        'employee__employee_code',
+        'employee__email',
+        'document__name',
+        'remarks',
+    )
+    readonly_fields = ('id', 'created_at', 'updated_at')
+    raw_id_fields = (
+        'employee',
+        'document',
+        'file',
+        'verified_by',
+        'created_by',
+        'updated_by',
+    )
+
+
+@admin.register(EmployeeTaxDetail)
+class EmployeeTaxDetailAdmin(admin.ModelAdmin):
+    list_display = (
+        'employee',
+        'pan_number',
+        'tax_regime',
+        'is_pf_applicable',
+        'is_esi_applicable',
+        'professional_tax_applicable',
+        'updated_at',
+    )
+    list_filter = (
+        'tax_regime',
+        'is_pf_applicable',
+        'is_esi_applicable',
+        'professional_tax_applicable',
+        'labour_welfare_fund_applicable',
+    )
+    search_fields = (
+        'employee__employee_code',
+        'employee__email',
+        'pan_number',
+        'aadhaar_number',
+        'uan_number',
+        'pf_number',
+        'esi_number',
+        'tax_identification_number',
+    )
+    readonly_fields = ('id', 'created_at', 'updated_at')
+    raw_id_fields = ('employee', 'created_by', 'updated_by')
+
+
+@admin.register(AssetType)
+class AssetTypeAdmin(admin.ModelAdmin):
+    list_display = ('name', 'organization', 'is_active', 'created_at')
+    list_filter = ('is_active',)
+    search_fields = (
+        'name',
+        'organization__display_name',
+        'organization__organization_code',
+    )
+    readonly_fields = ('id', 'created_at', 'updated_at')
+    raw_id_fields = ('organization', 'created_by', 'updated_by')
+
+
+class EmployeeAssetAssignmentInline(admin.TabularInline):
+    model = EmployeeAssetAssignment
+    extra = 0
+    fields = (
+        'employee',
+        'assigned_at',
+        'expected_return_at',
+        'returned_at',
+        'status',
+        'issued_by',
+        'received_by',
+        'remarks',
+    )
+    raw_id_fields = ('employee', 'issued_by', 'received_by')
+    readonly_fields = ('assigned_at', 'returned_at', 'status')
+    ordering = ('-assigned_at',)
+    show_change_link = True
+
+
+@admin.register(Asset)
+class AssetAdmin(admin.ModelAdmin):
+    list_display = (
+        'asset_code',
+        'name',
+        'asset_type',
+        'status',
+        'organization',
+        'is_active',
+        'created_at',
+    )
+    list_filter = ('status', 'is_active')
+    search_fields = (
+        'asset_code',
+        'name',
+        'serial_number',
+        'brand',
+        'model',
+        'organization__display_name',
+    )
+    readonly_fields = ('id', 'created_at', 'updated_at')
+    raw_id_fields = ('organization', 'asset_type', 'created_by', 'updated_by')
+    inlines = (EmployeeAssetAssignmentInline,)
+
+
+@admin.register(EmployeeAssetAssignment)
+class EmployeeAssetAssignmentAdmin(admin.ModelAdmin):
+    list_display = (
+        'asset',
+        'employee',
+        'status',
+        'assigned_at',
+        'returned_at',
+        'organization',
+        'created_at',
+    )
+    list_filter = ('status',)
+    search_fields = (
+        'asset__asset_code',
+        'asset__name',
+        'employee__employee_code',
+        'employee__email',
+    )
+    readonly_fields = ('id', 'created_at', 'updated_at')
+    raw_id_fields = (
+        'organization',
+        'employee',
+        'asset',
+        'issued_by',
+        'received_by',
+        'created_by',
+        'updated_by',
+    )
+
+
+class LeavePolicyRuleInline(admin.TabularInline):
+    model = LeavePolicyRule
+    extra = 0
+    fields = (
+        'leave_type',
+        'allocation_frequency',
+        'allocation_quantity',
+        'annual_limit',
+        'carry_forward_allowed',
+        'carry_forward_limit',
+        'encashment_allowed',
+        'encashment_limit',
+        'allow_half_day',
+        'allow_negative_balance',
+        'minimum_service_days',
+        'maximum_consecutive_days',
+        'is_active',
+    )
+    raw_id_fields = ('leave_type',)
+    ordering = ('leave_type__name', 'id')
+
+
+@admin.register(LeavePolicy)
+class LeavePolicyAdmin(admin.ModelAdmin):
+    list_display = (
+        'code',
+        'name',
+        'employee_type',
+        'effective_from',
+        'effective_to',
+        'is_default',
+        'organization',
+        'is_active',
+        'created_at',
+    )
+    list_filter = ('is_active', 'is_default', 'employee_type')
+    search_fields = (
+        'code',
+        'name',
+        'description',
+        'employee_type__name',
+        'organization__display_name',
+        'organization__organization_code',
+    )
+    readonly_fields = ('id', 'created_at', 'updated_at')
+    raw_id_fields = ('organization', 'employee_type', 'created_by', 'updated_by')
+    inlines = (LeavePolicyRuleInline,)
+
+
+@admin.register(LeavePolicyRule)
+class LeavePolicyRuleAdmin(admin.ModelAdmin):
+    list_display = (
+        'policy',
+        'leave_type',
+        'allocation_frequency',
+        'allocation_quantity',
+        'annual_limit',
+        'carry_forward_allowed',
+        'encashment_allowed',
+        'is_active',
+        'created_at',
+    )
+    list_filter = (
+        'allocation_frequency',
+        'is_active',
+        'carry_forward_allowed',
+        'encashment_allowed',
+    )
+    search_fields = (
+        'policy__code',
+        'policy__name',
+        'leave_type__name',
+    )
+    readonly_fields = ('id', 'created_at', 'updated_at')
+    raw_id_fields = ('policy', 'leave_type', 'created_by', 'updated_by')
+
+
+@admin.register(EmployeeLeaveBalance)
+class EmployeeLeaveBalanceAdmin(admin.ModelAdmin):
+    list_display = (
+        'employee',
+        'leave_type',
+        'allocated',
+        'used',
+        'balance',
+        'organization',
+        'updated_at',
+    )
+    list_filter = ('leave_type',)
+    search_fields = (
+        'employee__employee_code',
+        'employee__email',
+        'leave_type__name',
+    )
+    readonly_fields = ('id', 'created_at', 'updated_at')
+    raw_id_fields = ('organization', 'employee', 'leave_type', 'created_by', 'updated_by')
+
+
+@admin.register(LeaveApplication)
+class LeaveApplicationAdmin(admin.ModelAdmin):
+    list_display = (
+        'employee',
+        'leave_type',
+        'from_date',
+        'to_date',
+        'number_of_days',
+        'status',
+        'organization',
+        'created_at',
+    )
+    list_filter = ('status', 'is_half_day', 'leave_type')
+    search_fields = (
+        'employee__employee_code',
+        'employee__email',
+        'leave_type__name',
+        'reason',
+    )
+    readonly_fields = ('id', 'created_at', 'updated_at', 'approved_at')
+    raw_id_fields = (
+        'organization',
+        'employee',
+        'leave_type',
+        'approved_by',
+        'created_by',
+        'updated_by',
+    )
+
+
+@admin.register(EmployeeLeaveLog)
+class EmployeeLeaveLogAdmin(admin.ModelAdmin):
+    list_display = (
+        'employee',
+        'leave_type',
+        'transaction_type',
+        'quantity',
+        'balance_before',
+        'balance_after',
+        'organization',
+        'created_at',
+    )
+    list_filter = ('transaction_type', 'leave_type')
+    search_fields = (
+        'employee__employee_code',
+        'employee__email',
+        'leave_type__name',
+        'remarks',
+    )
+    readonly_fields = ('id', 'created_at', 'updated_at')
+    raw_id_fields = (
+        'organization',
+        'employee',
+        'leave_type',
+        'leave_application',
+        'created_by',
+        'updated_by',
+    )
+
+
+class AttendanceSessionInline(admin.TabularInline):
+    model = AttendanceSession
+    extra = 0
+    fields = ('check_in', 'check_out', 'worked_hours', 'source', 'remarks')
+    readonly_fields = ('worked_hours',)
+    ordering = ('check_in',)
+
+
+@admin.register(Attendance)
+class AttendanceAdmin(admin.ModelAdmin):
+    list_display = (
+        'employee',
+        'attendance_date',
+        'status',
+        'is_manual',
+        'approval_status',
+        'first_check_in',
+        'last_check_out',
+        'total_worked_hours',
+        'organization',
+        'updated_at',
+    )
+    list_filter = ('status', 'is_manual', 'approval_status')
+    search_fields = (
+        'employee__employee_code',
+        'employee__email',
+        'employee__display_name',
+        'remarks',
+    )
+    readonly_fields = ('id', 'created_at', 'updated_at', 'approved_at')
+    raw_id_fields = ('organization', 'employee', 'approved_by', 'created_by', 'updated_by')
+    inlines = (AttendanceSessionInline,)
+
+
+@admin.register(AttendanceSession)
+class AttendanceSessionAdmin(admin.ModelAdmin):
+    list_display = (
+        'attendance',
+        'check_in',
+        'check_out',
+        'worked_hours',
+        'source',
+        'created_at',
+    )
+    list_filter = ('source',)
+    search_fields = (
+        'attendance__employee__employee_code',
+        'attendance__employee__email',
+        'remarks',
+    )
+    readonly_fields = ('id', 'created_at', 'updated_at')
+    raw_id_fields = ('attendance', 'created_by', 'updated_by')
+
+
+@admin.register(AttendanceBreak)
+class AttendanceBreakAdmin(admin.ModelAdmin):
+    list_display = (
+        'session',
+        'break_start',
+        'break_end',
+        'break_duration',
+        'created_at',
+    )
+    search_fields = (
+        'session__attendance__employee__employee_code',
+        'session__attendance__employee__email',
+        'remarks',
+    )
+    readonly_fields = ('id', 'created_at', 'updated_at')
+    raw_id_fields = ('session', 'created_by', 'updated_by')

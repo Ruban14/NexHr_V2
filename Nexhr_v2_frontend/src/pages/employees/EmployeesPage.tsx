@@ -12,6 +12,7 @@ import { StatusBadge } from '../../components/ui/StatusBadge';
 import { Toolbar } from '../../components/ui/Toolbar';
 import { DataTable, type DataTableColumn } from '../../components/ui/DataTable';
 import type { EmployeeRecord, PaginationMeta } from '../../types';
+import { lifecycleStatusTone } from '../../utils/lifecycleStatus';
 import { useWorkspace } from '../../workspace/WorkspaceContext';
 import './EmployeesPage.css';
 
@@ -111,7 +112,12 @@ export function EmployeesPage() {
       header: 'Lifecycle',
       width: '180px',
       render: (row) => (
-        <span className="employees__status-pill">{row.lifecycle_status.name}</span>
+        <span
+          className="employees__status-pill"
+          data-lifecycle={lifecycleStatusTone(row.lifecycle_status)}
+        >
+          {row.lifecycle_status.name}
+        </span>
       ),
     },
     {

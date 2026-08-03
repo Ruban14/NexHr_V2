@@ -1,0 +1,46 @@
+.leave-policies__guide {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.leave-policies__guide > div {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--color-surface) 92%, var(--color-bg, #fff));
+}
+
+.leave-policies__guide strong {
+  font-size: 0.9rem;
+}
+
+.leave-policies__guide span {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  line-height: 1.4;
+}
+
+.leave-policies__name em {
+  display: block;
+  margin-top: 0.2rem;
+  font-style: normal;
+  font-size: 0.78rem;
+  color: var(--color-brand-700, var(--color-brand-600));
+  font-weight: 550;
+}
+
+.leave-policies__dates {
+  font-size: 0.84rem;
+  color: var(--color-text-secondary);
+  line-height: 1.45;
+}
+
+@media (max-width: 720px) {
+  .leave-policies__guide {
+    grid-template-columns: 1fr;
+  }
+}

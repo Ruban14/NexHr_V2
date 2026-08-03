@@ -74,6 +74,7 @@ export function OrganizationEditPage() {
   const [city, setCity] = useState('');
   const [timezone, setTimezone] = useState('Asia/Kolkata');
   const [currency, setCurrency] = useState('INR');
+  const [noticePeriodDays, setNoticePeriodDays] = useState(30);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -98,6 +99,7 @@ export function OrganizationEditPage() {
     setCity(org.city);
     setTimezone(org.timezone || 'Asia/Kolkata');
     setCurrency(org.currency || 'INR');
+    setNoticePeriodDays(org.notice_period_days || 30);
     setLogoBroken(false);
     // Hydrate once per organization — avoid wiping in-progress edits when logo preview updates.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -229,6 +231,7 @@ export function OrganizationEditPage() {
         city: city.trim(),
         timezone: timezone.trim(),
         currency: currency.trim().toUpperCase(),
+        notice_period_days: noticePeriodDays,
       });
       clearLegacyOrgLogoCache(org.id);
       workspace.setOrganization(updated);
@@ -258,6 +261,7 @@ export function OrganizationEditPage() {
     setCity(org.city);
     setTimezone(org.timezone || 'Asia/Kolkata');
     setCurrency(org.currency || 'INR');
+    setNoticePeriodDays(org.notice_period_days || 30);
     setMessage(null);
     setError(null);
     setFieldErrors({});
@@ -517,6 +521,21 @@ export function OrganizationEditPage() {
                     value={currency}
                     onChange={(e) => setCurrency(e.target.value)}
                     maxLength={3}
+                  />
+                </Field>
+              </div>
+              <div className="org-edit__grid org-edit__grid--2">
+                <Field
+                  label="Notice period (days)"
+                  error={fieldErrors.notice_period_days}
+                  hint="Used to calculate exit date when notice starts."
+                >
+                  <input
+                    type="number"
+                    min={1}
+                    max={365}
+                    value={noticePeriodDays}
+                    onChange={(e) => setNoticePeriodDays(Number(e.target.value) || 1)}
                   />
                 </Field>
               </div>
