@@ -176,7 +176,7 @@ class AuthService:
         user.last_login = timezone.now()
         user.save(update_fields=['last_login'])
         if user.must_change_password:
-            from apps.organization.services.lifecycle import EmployeeService
+            from apps.people.services.employee_service import EmployeeService
 
             EmployeeService.accept_invite_on_login(user=user)
         return AuthResult(user=user, tokens=tokens)

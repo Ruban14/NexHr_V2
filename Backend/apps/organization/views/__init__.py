@@ -58,15 +58,15 @@ from apps.organization.serializers import (
     WorkWeekCreateSerializer,
     WorkWeekUpdateSerializer,
 )
-from apps.organization.services.assets import AssetService
-from apps.organization.services.attendance import AttendanceService
-from apps.organization.services.documents import EmployeeDocumentService
-from apps.organization.services.leave_policies import LeavePolicyService
-from apps.organization.services.leaves import LeaveService
-from apps.organization.services.lifecycle import EmployeeService
-from apps.organization.services.masters import MasterService
-from apps.organization.services.setup import OrganizationSetupService
-from apps.organization.services.workspace import WorkspaceService
+from apps.assets.services.asset_service import AssetService
+from apps.attendance.services.attendance_service import AttendanceService
+from apps.documents.services.document_service import EmployeeDocumentService
+from apps.leave.services.leave_policy_service import LeavePolicyService
+from apps.leave.services.leave_service import LeaveService
+from apps.people.services.employee_service import EmployeeService
+from apps.workforce.services.master_service import MasterService
+from apps.organizations.services.organization_setup_service import OrganizationSetupService
+from apps.organizations.services.workspace_service import WorkspaceService
 
 
 class IndustryTypeListView(APIView):

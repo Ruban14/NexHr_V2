@@ -20,7 +20,7 @@ def main() -> int:
     setup_django()
 
     from apps.leave.models import LeavePolicyRule
-    from apps.organization.services.leave_scheduler import LeaveSchedulerService
+    from apps.leave.services.leave_scheduler_service import LeaveSchedulerService
 
     summary = LeaveSchedulerService.run_allocation(
         frequency=LeavePolicyRule.AllocationFrequency.MONTHLY,

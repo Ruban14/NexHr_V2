@@ -22,7 +22,7 @@ def main() -> int:
     args = parser.parse_args()
     setup_django()
 
-    from apps.organization.services.leave_scheduler import LeaveSchedulerService
+    from apps.leave.services.leave_scheduler_service import LeaveSchedulerService
 
     summary = LeaveSchedulerService.run_carry_forward(
         on_date=parse_date(args.date),

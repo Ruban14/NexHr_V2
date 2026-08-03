@@ -19,7 +19,7 @@ from apps.people.models import (
     Employee,
     EmployeeLifecycleHistory,
 )
-from apps.organization.services.lifecycle import EmployeeLifecycleEngine
+from apps.people.services.employee_lifecycle_service import EmployeeLifecycleEngine
 
 
 class EmployeeLifecycleEngineTests(TestCase):
