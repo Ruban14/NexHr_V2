@@ -14,22 +14,26 @@ from apps.core.exceptions import (
     PermissionDeniedServiceError,
     ValidationServiceError,
 )
-from apps.organization.models import (
+from apps.organizations.models import (
+    OrganizationBranch,
+    OrganizationMembership,
+)
+from apps.workforce.models import (
     AccessType,
     Department,
     Designation,
-    DocumentCategory,
-    DocumentDefinition,
-    DocumentPolicy,
-    DocumentPolicyItem,
     EmployeeType,
     Holiday,
     HolidayCalendar,
     LeaveType,
-    OrganizationBranch,
-    OrganizationMembership,
     Shift,
     WorkWeek,
+)
+from apps.documents.models import (
+    DocumentCategory,
+    DocumentDefinition,
+    DocumentPolicy,
+    DocumentPolicyItem,
 )
 from apps.organization.services.workspace import WorkspaceService
 

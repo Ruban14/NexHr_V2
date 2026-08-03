@@ -17,12 +17,16 @@ from apps.core.exceptions import (
     PermissionDeniedServiceError,
     ValidationServiceError,
 )
-from apps.organization.models import (
+from apps.organizations.models import (
+    OrganizationMembership,
+)
+from apps.people.models import (
+    Employee,
+)
+from apps.attendance.models import (
     Attendance,
     AttendanceBreak,
     AttendanceSession,
-    Employee,
-    OrganizationMembership,
 )
 from apps.organization.services.leaves import LeaveService
 from apps.organization.services.workspace import WorkspaceService

@@ -6,14 +6,18 @@ from django.test import TestCase
 
 from apps.authentication.models import User
 from apps.core.exceptions import ValidationServiceError
-from apps.organization.models import (
-    Employee,
-    EmployeeLifecycleHistory,
-    EmployeeLifecycleStatus,
-    EmployeeLifecycleTransition,
+from apps.organizations.models import (
     IndustryType,
     Organization,
     OrganizationBranch,
+)
+from apps.workforce.models import (
+    EmployeeLifecycleStatus,
+    EmployeeLifecycleTransition,
+)
+from apps.people.models import (
+    Employee,
+    EmployeeLifecycleHistory,
 )
 from apps.organization.services.lifecycle import EmployeeLifecycleEngine
 

@@ -6,7 +6,7 @@ import re
 
 from rest_framework import serializers
 
-from apps.organization.models import Organization
+from apps.organizations.models import Organization
 
 IFSC_PATTERN = re.compile(r'^[A-Z]{4}0[A-Z0-9]{6}$')
 ACCOUNT_NUMBER_PATTERN = re.compile(r'^[A-Za-z0-9]{6,64}$')

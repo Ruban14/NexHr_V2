@@ -19,7 +19,7 @@ def main() -> int:
     args = parser.parse_args()
     setup_django()
 
-    from apps.organization.models import LeavePolicyRule
+    from apps.leave.models import LeavePolicyRule
     from apps.organization.services.leave_scheduler import LeaveSchedulerService
 
     summary = LeaveSchedulerService.run_allocation(

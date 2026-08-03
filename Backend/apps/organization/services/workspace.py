@@ -9,7 +9,14 @@ from django.db import transaction
 
 from apps.authentication.models import User
 from apps.core.exceptions import NotFoundServiceError, PermissionDeniedServiceError, ValidationServiceError
-from apps.organization.models import Employee, IndustryType, Organization, OrganizationMembership
+from apps.organizations.models import (
+    IndustryType,
+    Organization,
+    OrganizationMembership,
+)
+from apps.people.models import (
+    Employee,
+)
 
 
 class WorkspaceService:

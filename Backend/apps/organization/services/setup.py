@@ -10,15 +10,19 @@ from django.db import transaction
 
 from apps.authentication.models import User
 from apps.core.exceptions import ConflictServiceError, NotFoundServiceError, ValidationServiceError
-from apps.organization.models import (
-    AccessType,
-    Employee,
-    EmployeeLifecycleStatus,
-    EmployeeType,
+from apps.organizations.models import (
     IndustryType,
     Organization,
     OrganizationBranch,
     OrganizationMembership,
+)
+from apps.workforce.models import (
+    AccessType,
+    EmployeeLifecycleStatus,
+    EmployeeType,
+)
+from apps.people.models import (
+    Employee,
 )
 from apps.organization.services.lifecycle import EmployeeService
 from apps.organization.services.workspace import WorkspaceService

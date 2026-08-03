@@ -17,17 +17,21 @@ from apps.core.exceptions import (
     PermissionDeniedServiceError,
     ValidationServiceError,
 )
-from apps.organization.models import (
+from apps.organizations.models import (
+    Organization,
+    OrganizationMembership,
+)
+from apps.workforce.models import (
+    EmployeeLifecycleStatus,
+    EmployeeLifecycleTransition,
+)
+from apps.people.models import (
     Employee,
     EmployeeBankDetail,
     EmployeeEducation,
     EmployeeJobExperience,
     EmployeeLifecycleHistory,
-    EmployeeLifecycleStatus,
-    EmployeeLifecycleTransition,
     EmployeeTaxDetail,
-    Organization,
-    OrganizationMembership,
 )
 from apps.organization.services.workspace import WorkspaceService
 
@@ -522,7 +526,7 @@ class EmployeeService:
     def get_employee(cls, *, user: User, branch_id: str | UUID | None, employee_id: str | UUID) -> dict:
         from django.db.models import Q
 
-        from apps.organization.models import AccessType, Designation, EmployeeType
+        from apps.workforce.models import AccessType, Designation, EmployeeType
 
         membership = WorkspaceService.get_membership(user, branch_id=branch_id)
         organization = membership.branch.organization

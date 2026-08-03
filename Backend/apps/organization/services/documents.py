@@ -17,13 +17,17 @@ from apps.core.exceptions import (
     PermissionDeniedServiceError,
     ValidationServiceError,
 )
-from apps.organization.models import (
+from apps.organizations.models import (
+    OrganizationMembership,
+)
+from apps.people.models import (
+    Employee,
+)
+from apps.documents.models import (
     DocumentDefinition,
     DocumentPolicy,
-    Employee,
     EmployeeDocument,
     File,
-    OrganizationMembership,
 )
 from apps.organization.services.workspace import WorkspaceService
 

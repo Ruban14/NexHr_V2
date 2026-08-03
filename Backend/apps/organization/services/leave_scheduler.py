@@ -9,13 +9,17 @@ from django.db import transaction
 from django.db.models import Q, Sum
 from django.utils import timezone
 
-from apps.organization.models import (
+from apps.organizations.models import (
+    Organization,
+)
+from apps.people.models import (
     Employee,
+)
+from apps.leave.models import (
     EmployeeLeaveBalance,
     EmployeeLeaveLog,
     LeavePolicy,
     LeavePolicyRule,
-    Organization,
 )
 
 

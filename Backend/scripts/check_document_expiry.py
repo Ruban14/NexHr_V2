@@ -30,7 +30,7 @@ def main() -> int:
     from django.db.models import Q
     from django.utils import timezone
 
-    from apps.organization.models import EmployeeDocument
+    from apps.documents.models import EmployeeDocument
 
     day = parse_date(args.date) or timezone.localdate()
     until = day + timedelta(days=max(args.days, 0))

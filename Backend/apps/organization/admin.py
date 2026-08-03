@@ -2,45 +2,57 @@
 
 from django.contrib import admin
 
-from apps.organization.models import (
+from apps.organizations.models import (
+    IndustryType,
+    Organization,
+    OrganizationBranch,
+    OrganizationMembership,
+)
+from apps.workforce.models import (
     AccessType,
-    Asset,
-    AssetType,
-    Attendance,
-    AttendanceBreak,
-    AttendanceSession,
     Department,
     Designation,
+    EmployeeLifecycleStatus,
+    EmployeeLifecycleTransition,
+    EmployeeType,
+    Holiday,
+    HolidayCalendar,
+    LeaveType,
+    Shift,
+    WorkWeek,
+)
+from apps.people.models import (
+    Employee,
+    EmployeeBankDetail,
+    EmployeeEducation,
+    EmployeeJobExperience,
+    EmployeeLifecycleHistory,
+    EmployeeTaxDetail,
+)
+from apps.documents.models import (
     DocumentCategory,
     DocumentDefinition,
     DocumentPolicy,
     DocumentPolicyItem,
-    Employee,
-    EmployeeAssetAssignment,
-    EmployeeBankDetail,
     EmployeeDocument,
-    EmployeeEducation,
-    EmployeeJobExperience,
+    File,
+)
+from apps.assets.models import (
+    Asset,
+    AssetType,
+    EmployeeAssetAssignment,
+)
+from apps.leave.models import (
     EmployeeLeaveBalance,
     EmployeeLeaveLog,
-    EmployeeLifecycleHistory,
-    EmployeeLifecycleStatus,
-    EmployeeLifecycleTransition,
-    EmployeeTaxDetail,
-    EmployeeType,
-    File,
-    Holiday,
-    HolidayCalendar,
-    IndustryType,
     LeaveApplication,
     LeavePolicy,
     LeavePolicyRule,
-    LeaveType,
-    Organization,
-    OrganizationBranch,
-    OrganizationMembership,
-    Shift,
-    WorkWeek,
+)
+from apps.attendance.models import (
+    Attendance,
+    AttendanceBreak,
+    AttendanceSession,
 )
 
 
